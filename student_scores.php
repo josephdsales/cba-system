@@ -11,15 +11,16 @@ $title = 'My Scores';
 include __DIR__ . '/includes/header.php';
 ?>
 <div class="card"><div class="table-wrap"><table>
-  <tr><th>Exam</th><th>Score</th><th>%</th><th>Result</th><th>Date</th></tr>
+  <tr><th>Exam</th><th>Score</th><th>%</th><th>Result</th><th>Date</th><th></th></tr>
   <?php foreach ($rows as $r): ?>
   <tr>
     <td><?= e($r['title']) ?></td><td><?= e($r['score']) ?>/<?= e($r['total']) ?></td>
     <td><b><?= e($r['percentage']) ?>%</b></td>
     <td><?= $r['percentage'] >= $r['passing_percent'] ? '<span class="badge b-published">PASSED</span>' : '<span class="badge b-closed">FAILED</span>' ?></td>
     <td><?= e($r['submitted_at']) ?></td>
+    <td><a class="btn small ghost" href="student_review.php?attempt_id=<?= $r['id'] ?>">Review</a></td>
   </tr>
   <?php endforeach; ?>
-  <?php if (!$rows): ?><tr><td colspan="5" class="hint">No scores yet. <a href="student_exams.php">Take an exam</a>.</td></tr><?php endif; ?>
+  <?php if (!$rows): ?><tr><td colspan="6" class="hint">No scores yet. <a href="student_exams.php">Take an exam</a>.</td></tr><?php endif; ?>
 </table></div></div>
 <?php include __DIR__ . '/includes/footer.php'; ?>

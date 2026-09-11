@@ -1,0 +1,58 @@
+/* CBA System - responsive (mobile-first) theme */
+:root {
+  --bg: #f4f6fb; --card: #fff; --ink: #1a2332; --muted: #667085;
+  --brand: #1d4ed8; --brand-d: #1e40af; --ok: #15803d; --warn: #b45309; --bad: #b91c1c;
+  --line: #e4e7ec; --radius: 12px;
+}
+* { box-sizing: border-box; }
+body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; background: var(--bg); color: var(--ink); }
+.wrap { max-width: 1024px; margin: 0 auto; padding: 0 14px; }
+.topbar { background: #101c33; color: #fff; position: sticky; top: 0; z-index: 10; }
+.topbar-inner { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 14px; flex-wrap: wrap; }
+.brand { color: #fff; text-decoration: none; font-weight: 700; font-size: 1.02rem; }
+.nav { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.nav a { color: #dbe4ff; text-decoration: none; font-size: .92rem; }
+.nav a:hover { text-decoration: underline; }
+.hello { font-size: .85rem; color: #fff; } .hello small { color: #9db4e8; }
+main.wrap { padding-bottom: 40px; }
+.page-title { font-size: 1.35rem; margin: 18px 0 12px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; margin: 12px 0; box-shadow: 0 1px 2px rgba(16,24,40,.05); }
+.grid { display: grid; gap: 12px; }
+@media (min-width: 720px) { .grid.two { grid-template-columns: 1fr 1fr; } .grid.three { grid-template-columns: 1fr 1fr 1fr; } }
+.stat { text-align: center; } .stat .n { font-size: 1.8rem; font-weight: 800; } .stat .l { color: var(--muted); font-size: .85rem; }
+label { display: block; font-weight: 600; font-size: .9rem; margin: 10px 0 4px; }
+input[type=text], input[type=password], input[type=number], select, textarea {
+  width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 1rem; background: #fff;
+}
+textarea { min-height: 90px; resize: vertical; }
+.btn { display: inline-block; background: var(--brand); color: #fff; border: 0; border-radius: 8px; padding: 10px 16px; font-size: 1rem; cursor: pointer; text-decoration: none; }
+.btn:hover { background: var(--brand-d); }
+.btn.small { padding: 6px 10px; font-size: .85rem; }
+.btn.ghost { background: #eef2ff; color: var(--brand-d); }
+.btn.danger { background: var(--bad); }
+.btn.ok { background: var(--ok); }
+.btnrow { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+table { width: 100%; border-collapse: collapse; font-size: .93rem; }
+th, td { text-align: left; padding: 9px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { color: var(--muted); font-size: .8rem; text-transform: uppercase; letter-spacing: .04em; }
+.table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.flash { background: #e8f5e9; border: 1px solid #a5d6a7; color: #1b5e20; padding: 10px 12px; border-radius: 8px; margin-top: 12px; }
+.badge { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: .78rem; font-weight: 700; }
+.b-draft { background: #fef3c7; color: #92400e; } .b-published { background: #dcfce7; color: #166534; } .b-closed { background: #fee2e2; color: #991b1b; }
+.footer { padding: 22px 0 40px; color: var(--muted); text-align: center; }
+.q { border: 1px solid var(--line); border-radius: 10px; padding: 12px; margin: 10px 0; background: #fff; }
+.q h3 { margin: 0 0 8px; font-size: 1rem; }
+.opt { display: block; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; margin: 6px 0; cursor: pointer; }
+.opt input { margin-right: 8px; }
+.timer { position: sticky; top: 58px; background: #101c33; color: #fff; display: inline-block; padding: 8px 14px; border-radius: 999px; font-weight: 800; margin: 8px 0; }
+.hint { color: var(--muted); font-size: .87rem; }
+code.inline { background: #eef2ff; padding: 1px 6px; border-radius: 6px; }
+pre.sample { background: #0f172a; color: #e2e8f0; padding: 12px; border-radius: 10px; overflow-x: auto; font-size: .82rem; }
+
+/* Clean printout for Review / Reports -> Save as PDF */
+@media print {
+  .topbar, .footer, .btnrow, .no-print { display: none !important; }
+  body { background: #fff; }
+  main.wrap { max-width: none; }
+  .card, .q { box-shadow: none; break-inside: avoid; }
+}
