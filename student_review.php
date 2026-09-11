@@ -28,6 +28,7 @@ include __DIR__ . '/includes/header.php';
 <div class="card print-only" style="text-align:center;padding:32px 16px">
   <h2 style="margin:0 0 4px"><?= e($attempt['title']) ?></h2>
   <p style="margin:0 0 16px" class="hint">Examination Result</p>
+  <p style="margin:6px 0">Student: <b><?= e($user['fullname']) ?></b></p>
   <p style="margin:6px 0">Date taken: <b><?= e($attempt['submitted_at']) ?></b></p>
   <p style="margin:6px 0">Score: <b><?= e($attempt['score']) ?>/<?= e($attempt['total']) ?> (<?= e($attempt['percentage']) ?>%)</b></p>
   <p style="margin:10px 0;font-size:1.2rem"><?= $attempt['percentage'] >= $attempt['passing_percent'] ? '<span class="badge b-published">PASSED</span>' : '<span class="badge b-closed">FAILED</span>' ?></p>
@@ -47,7 +48,7 @@ include __DIR__ . '/includes/header.php';
   $ok = !empty($q['is_correct']);
   $mine = $q['student_answer'] ?? '';
 ?>
-<div class="q">
+<div class="q screen-only">
   <h3><?= $i++ ?>. <?= e($q['question_text']) ?>
     <?= $ok ? '<span class="badge b-published">✓ Correct</span>' : '<span class="badge b-closed">✗ Incorrect</span>' ?>
     <small class="hint"><?= e($q['points_earned']) ?>/<?= e($q['points']) ?> pt(s)</small></h3>
