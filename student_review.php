@@ -24,6 +24,7 @@ $items = $st->fetchAll();
 $title = 'Review: ' . $attempt['title'];
 include __DIR__ . '/includes/header.php';
 ?>
+<div class="card">
 <!-- Print-only result slip: this ALONE appears in the PDF -->
 <div class="card print-only" style="text-align:center;padding:32px 16px">
   <h2 style="margin:0 0 4px"><?= e($attempt['title']) ?></h2>
@@ -66,4 +67,5 @@ include __DIR__ . '/includes/header.php';
   <?php endif; ?>
 </div>
 <?php endforeach; ?>
+</div>
 <?php include __DIR__ . '/includes/footer.php'; ?>

@@ -52,6 +52,7 @@ pre.sample { background: #0f172a; color: #e2e8f0; padding: 12px; border-radius: 
 /* Clean printout for Review / Reports -> Save as PDF */
 .print-only { display: none; }
 @media print {
+  .topbar, .footer, .btnrow, .no-print { display: none !important; }
   .topbar, .footer, .btnrow, .no-print, .screen-only { display: none !important; }
   .print-only { display: block !important; }
   body { background: #fff; }
