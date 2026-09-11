@@ -16,10 +16,13 @@ function docx_to_text(string $path): string {
     $xml = $zip->getFromName('word/document.xml');
     $zip->close();
     if (!$xml) throw new RuntimeException('Invalid .docx: word/document.xml missing.');
-    // paragraphs -> newlines, tabs/breaks -> spaces
-    $xml = preg_replace('/<\/w:p[^>]*>/i', "\n", $xml);
-    $xml = preg_replace('/<w:(tab|br)[^>]*\/>/i', ' ', $xml);
+    // paragraphs AND table cells/rows -> newlines; soft line-breaks -> newlines too
+    $xml = preg_replace('/<\/(w:p|w:tc|w:tr)[^>]*>/i', "\n", $xml);
+    $xml = preg_replace('/<w:br[^>]*\/>/i', "\n", $xml);
+    $xml = preg_replace('/<w:tab[^>]*\/>/i', ' ', $xml);
     $text = strip_tags($xml);
+    // collapse 3+ newlines (keeps blank-line separators intact)
+    $text = preg_replace("/\n{3,}/", "\n\n", $text);
     return html_entity_decode($text, ENT_QUOTES | ENT_XML1, 'UTF-8');
 }
 
@@ -33,34 +36,57 @@ function docx_to_text(string $path): string {
 // Identification: "Q. What is ...?  Answer: Jose Rizal" (no A-D lines)
 function parse_exam_text(string $text): array {
     $text = str_replace(["\r\n", "\r"], "\n", trim($text));
-    $blocks = preg_split("/\n\s*\n/", $text);
+    $raw_blocks = preg_split("/\n\s*\n/", $text);
+    // Re-split: a new question may start WITHOUT a blank line before it.
+    $blocks = [];
+    foreach ($raw_blocks as $b) {
+        $lines = array_values(array_filter(array_map('trim', explode("\n", $b)), function ($l) { return $l !== ''; }));
+        $cur = []; $has_answer = false;
+        foreach ($lines as $ln) {
+            $is_answer = (bool)preg_match('/^(answer|ans|correct\s*answer)s?\s*[:\-\.]?\s*.+/i', $ln);
+            $is_qstart = (bool)preg_match('/^(Q\s*\d*|Question\s*\d+|\d+)\s*[\.\)\:\-]\s*\S/i', $ln);
+            if ($is_qstart && $has_answer && $cur) { $blocks[] = $cur; $cur = []; $has_answer = false; }
+            $cur[] = $ln;
+            if ($is_answer) $has_answer = true;
+        }
+        if ($cur) $blocks[] = $cur;
+    }
     $out = [];
-    foreach ($blocks as $b) {
-        $lines = array_values(array_filter(array_map('trim', explode("\n", $b)), fn($l) => $l !== ''));
-        if (!$lines) continue;
+    foreach ($blocks as $lines) {
         $q = ['text' => '', 'a' => null, 'b' => null, 'c' => null, 'd' => null,
               'answer' => '', 'points' => 1, 'qtype' => 'mcq'];
         $qlines = [];
         foreach ($lines as $ln) {
-            if (preg_match('/^([A-Da-d])[\.\)\:]\s*(.+)$/', $ln, $m) && !preg_match('/^answer/i', $ln)) {
+            if (preg_match('/^\(?([A-Da-d])[\)\.\:]\s*(.+)$/', $ln, $m) && !preg_match('/^answer/i', $ln)) {
                 $q[strtolower($m[1])] = trim($m[2]);
-            } elseif (preg_match('/^answer\s*[:\-]\s*(.+)$/i', $ln, $m)) {
-                $q['answer'] = trim($m[1]);
-            } elseif (preg_match('/^points?\s*[:\-]\s*(\d+)/i', $ln, $m)) {
+            } elseif (preg_match('/^(answer|ans|correct\s*answer)s?\s*[:\-\.]?\s*(.+)$/i', $ln, $m)) {
+                $q['answer'] = trim($m[2]);
+            } elseif (preg_match('/^points?\s*[:\-]?\s*(\d+)/i', $ln, $m)
+                   || preg_match('/^\(?(\d+)\s*points?\)?$/i', $ln, $m)) {
                 $q['points'] = max(1, (int)$m[1]);
             } elseif (preg_match('/^(type|qtype)\s*[:\-]\s*(.+)$/i', $ln, $m)) {
                 $t = strtolower(trim($m[2]));
                 if (strpos($t, 'true') !== false) $q['qtype'] = 'truefalse';
                 elseif (strpos($t, 'ident') !== false) $q['qtype'] = 'identification';
             } else {
-                // strip leading "Q1.", "Q:", "Question 1:" etc.
-                $qlines[] = preg_replace('/^(Q\d*|Question\s*\d*)[\.\)\:\-]\s*/i', '', $ln);
+                // strip leading "Q1.", "1.", "Q:", "Question 1:" etc.
+                $qlines[] = preg_replace('/^(Q\s*\d*|Question\s*\d+|\d+)\s*[\.\)\:\-]\s*/i', '', $ln);
             }
+        }
+        // Fallback for Word auto-numbered lists (numbers live in Word,
+        // not in the text): answer is a letter + trailing bare lines = options.
+        $hasOpts = $q['a'] !== null || $q['b'] !== null;
+        if (!$hasOpts && preg_match('/^[A-D]$/i', $q['answer']) && count($qlines) >= 3) {
+            $take = min(4, count($qlines) - 1);
+            $opts = array_splice($qlines, -$take);
+            foreach (['a', 'b', 'c', 'd'] as $i => $k) {
+                if (isset($opts[$i])) $q[$k] = $opts[$i];
+            }
+            $hasOpts = true;
         }
         $q['text'] = implode(' ', $qlines);
         if ($q['text'] === '' || $q['answer'] === '') continue; // skip incomplete
         // auto-detect type when not explicit
-        $hasOpts = $q['a'] !== null || $q['b'] !== null;
         $ans = strtolower($q['answer']);
         if (!$hasOpts && in_array($ans, ['true', 'false'], true)) $q['qtype'] = 'truefalse';
         elseif (!$hasOpts) $q['qtype'] = 'identification';
@@ -82,7 +108,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $raw = $ext === 'docx' ? docx_to_text($_FILES['examfile']['tmp_name'])
                                : file_get_contents($_FILES['examfile']['tmp_name']);
         $qs = parse_exam_text($raw);
-        if (!$qs) throw new RuntimeException('No valid questions found. Follow the sample format below.');
+        if (!$qs) {
+            $preview = trim(preg_replace('/\s+/', ' ', substr($raw, 0, 300)));
+            throw new RuntimeException('No valid questions found. Follow the sample format below (need "Answer:" line per question). Text read from your file starts with: "' . $preview . '"');
+        }
         $st = db()->prepare('SELECT COALESCE(MAX(sort_order),0) m FROM questions WHERE exam_id=?');
         $st->execute([$exam_id]); $n = (int)$st->fetch()['m'];
         $ins = db()->prepare('INSERT INTO questions (exam_id, question_text, qtype, option_a, option_b, option_c, option_d, correct_answer, points, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
@@ -127,6 +156,6 @@ Points: 1
 Q3. Who is the national hero of the Philippines?
 Answer: Jose Rizal
 Points: 2</pre>
-  <p class="hint">Tips: In Word, type exactly like above (one question per block, blank line between). Options as <code class="inline">A. ...</code> lines. Answer line as <code class="inline">Answer: B</code> / <code class="inline">True</code> / text. Save as <code class="inline">.docx</code> then upload.</p>
+  <p class="hint">Tips: one question per block, blank line between (also works without blank lines if each question starts with Q1., 1., etc.). Options as <code class="inline">A. ...</code> (also <code class="inline">A) ...</code>). Answer line as <code class="inline">Answer: B</code> (also <code class="inline">Ans:</code> / <code class="inline">Correct answer:</code>) / <code class="inline">True</code> / text. Word auto-numbered lists work too. Save as <code class="inline">.docx</code> then upload. If it fails, the error shows the text read from your file — compare it with the format above.</p>
 </div>
 <?php include __DIR__ . '/includes/footer.php'; ?>
