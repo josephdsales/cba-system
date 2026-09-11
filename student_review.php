@@ -24,7 +24,16 @@ $items = $st->fetchAll();
 $title = 'Review: ' . $attempt['title'];
 include __DIR__ . '/includes/header.php';
 ?>
-<div class="card">
+<!-- Print-only result slip: this ALONE appears in the PDF -->
+<div class="card print-only" style="text-align:center;padding:32px 16px">
+  <h2 style="margin:0 0 4px"><?= e($attempt['title']) ?></h2>
+  <p style="margin:0 0 16px" class="hint">Examination Result</p>
+  <p style="margin:6px 0">Student: <b><?= e($user['fullname']) ?></b></p>
+  <p style="margin:6px 0">Date taken: <b><?= e($attempt['submitted_at']) ?></b></p>
+  <p style="margin:6px 0">Score: <b><?= e($attempt['score']) ?>/<?= e($attempt['total']) ?> (<?= e($attempt['percentage']) ?>%)</b></p>
+  <p style="margin:10px 0;font-size:1.2rem"><?= $attempt['percentage'] >= $attempt['passing_percent'] ? '<span class="badge b-published">PASSED</span>' : '<span class="badge b-closed">FAILED</span>' ?></p>
+</div>
+<div class="card screen-only">
   <p style="margin:0"><b>Score: <?= e($attempt['score']) ?>/<?= e($attempt['total']) ?>
     (<?= e($attempt['percentage']) ?>%)</b>
     <?= $attempt['percentage'] >= $attempt['passing_percent'] ? '<span class="badge b-published">PASSED</span>' : '<span class="badge b-closed">FAILED</span>' ?>
@@ -33,13 +42,13 @@ include __DIR__ . '/includes/header.php';
     <button class="btn" type="button" onclick="window.print()">⬇ Download as PDF</button>
     <a class="btn ghost" href="student_scores.php">Back to scores</a>
   </div>
-  <p class="hint no-print">Tip: in the print dialog choose <b>Save as PDF</b> (on mobile: Share → Print → Save as PDF).</p>
+  <p class="hint no-print">Tip: the PDF contains only the result slip above (title, date, score, result). In the print dialog choose <b>Save as PDF</b>.</p>
 </div>
 <?php $i = 1; foreach ($items as $q):
   $ok = !empty($q['is_correct']);
   $mine = $q['student_answer'] ?? '';
 ?>
-<div class="q">
+<div class="q screen-only">
   <h3><?= $i++ ?>. <?= e($q['question_text']) ?>
     <?= $ok ? '<span class="badge b-published">✓ Correct</span>' : '<span class="badge b-closed">✗ Incorrect</span>' ?>
     <small class="hint"><?= e($q['points_earned']) ?>/<?= e($q['points']) ?> pt(s)</small></h3>

@@ -50,8 +50,10 @@ code.inline { background: #eef2ff; padding: 1px 6px; border-radius: 6px; }
 pre.sample { background: #0f172a; color: #e2e8f0; padding: 12px; border-radius: 10px; overflow-x: auto; font-size: .82rem; }
 
 /* Clean printout for Review / Reports -> Save as PDF */
+.print-only { display: none; }
 @media print {
-  .topbar, .footer, .btnrow, .no-print { display: none !important; }
+  .topbar, .footer, .btnrow, .no-print, .screen-only { display: none !important; }
+  .print-only { display: block !important; }
   body { background: #fff; }
   main.wrap { max-width: none; }
   .card, .q { box-shadow: none; break-inside: avoid; }
