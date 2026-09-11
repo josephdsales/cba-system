@@ -15,14 +15,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             $schema = db_driver() === 'pgsql' ? 'schema_pgsql.sql' : 'schema.sql';
             $sql = file_get_contents(__DIR__ . '/database/' . $schema);
+            // Strip full-line -- comments BEFORE splitting, so the first
+            // statement is not mistaken for a comment block and skipped.
+            $sql = preg_replace('/^--[^\n]*$/m', '', $sql);
             // Run schema statement-by-statement (PDO::exec can't do multi-statements reliably)
             $stmts = array_filter(array_map('trim', explode(';', $sql)));
             foreach ($stmts as $s) {
-                if ($s === '' || strpos(ltrim($s), '--') === 0) continue;
-                // skip pure comment blocks
-                $code = preg_replace('/^--[^\n]*\n/m', '', $s);
-                if (trim($code) === '') continue;
-                db()->exec($code);
+                if ($s === '') continue;
+                db()->exec($s);
             }
             $hash = password_hash($admin_pass, PASSWORD_DEFAULT);
             // Portable upsert (works on MySQL and Postgres): update if username exists, else insert.
