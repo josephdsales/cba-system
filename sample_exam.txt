@@ -1,0 +1,23 @@
+Q1. What is the capital of the Philippines?
+A. Cebu
+B. Manila
+C. Davao
+D. Baguio
+Answer: B
+Points: 1
+
+Q2. What is 12 x 8?
+A. 84
+B. 92
+C. 96
+D. 108
+Answer: C
+Points: 1
+
+Q3. The Philippines has three main island groups: Luzon, Visayas, and Mindanao.
+Answer: True
+Points: 1
+
+Q4. Who is the national hero of the Philippines?
+Answer: Jose Rizal
+Points: 2

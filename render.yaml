@@ -1,0 +1,17 @@
+# Render Blueprint: 1 Docker web service + 1 free PostgreSQL.
+# In Render: New > Blueprint > connect your repo. DATABASE_URL is wired automatically.
+databases:
+  - name: cba-db
+    plan: free
+
+services:
+  - type: web
+    name: cba-system
+    runtime: docker
+    plan: free
+    healthCheckPath: /index.php
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: cba-db
+          property: connectionString
