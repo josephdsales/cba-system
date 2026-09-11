@@ -35,6 +35,20 @@ function docx_to_text(string $path): string {
 // True/False:  "Q. Manila is the capital.  Answer: True"
 // Identification: "Q. What is ...?  Answer: Jose Rizal" (no A-D lines)
 function parse_exam_text(string $text): array {
+    $qs = parse_blocks($text);
+    if ($qs) return $qs;
+    // Fallback: whole exam pasted on one line (no line breaks in the file).
+    // Segment the inline markers (options, Answer, Points, Q-numbers), then re-parse.
+    $seg = $text;
+    $seg = preg_replace('/\s+(Answer|Ans|Correct answer)s?\s*:\s*/i', "\nAnswer: ", $seg);
+    $seg = preg_replace('/\s+Points?\s*:\s*/i', "\nPoints: ", $seg);
+    $seg = preg_replace('/\s+(\d+)\s+points?(?=\s|$)/i', "\nPoints: $1", $seg);
+    $seg = preg_replace('/\s+([A-D])[\.\)]\s+(?=\S)/', "\n$1. ", $seg);
+    $seg = preg_replace('/\s+(Q\s*\d+)\s*[\.\)\:]\s*/i', "\n$1. ", $seg);
+    return parse_blocks($seg);
+}
+
+function parse_blocks(string $text): array {
     $text = str_replace(["\r\n", "\r"], "\n", trim($text));
     $raw_blocks = preg_split("/\n\s*\n/", $text);
     // Re-split: a new question may start WITHOUT a blank line before it.
