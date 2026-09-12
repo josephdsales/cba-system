@@ -1,11 +1,12 @@
 <?php
 // Minimal pure-PHP PDF writer (no libraries needed): A4, Helvetica.
 // Used for direct "Download as PDF" (bypasses the print dialog).
+// Supports text lines + bordered tables (with header repeat on page breaks).
 class MiniPDF {
     private $pages = [];
     private $cur = [];
     private $y = 800;
-    const LEFT = 50; const TOP = 800; const BOTTOM = 50;
+    const LEFT = 50; const TOP = 800; const BOTTOM = 50; const PW = 595;
 
     public function addLine(string $text, int $size = 11, bool $bold = false, int $gap = 0): void {
         $h = $size * 1.35;
@@ -13,7 +14,7 @@ class MiniPDF {
             if ($this->y < self::BOTTOM) {
                 $this->pages[] = $this->cur; $this->cur = []; $this->y = self::TOP;
             }
-            $this->cur[] = [$size, $bold, $w];
+            $this->cur[] = ['t', $size, $bold, self::LEFT, $this->y, $w];
             $this->y -= $h;
         }
         $this->y -= $gap;
@@ -21,6 +22,44 @@ class MiniPDF {
 
     public function blank(int $n = 1): void {
         for ($i = 0; $i < $n; $i++) $this->addLine(' ');
+    }
+
+    // Bordered table. $widths must sum to <= 495. Header repeats after page breaks.
+    public function table(array $headers, array $widths, array $rows, int $size = 9): void {
+        $rowH = 16;
+        $total = array_sum($widths);
+        $avail = self::PW - self::LEFT * 2;
+        if ($total > $avail) { $scale = $avail / $total; foreach ($widths as &$w) $w = $w * $scale; unset($w); }
+        $drawRow = function (array $cells, bool $bold, $fill) use ($widths, $rowH, $size) {
+            if ($this->y - $rowH < self::BOTTOM) {
+                $this->pages[] = $this->cur; $this->cur = []; $this->y = self::TOP;
+            }
+            $x = self::LEFT; $yTop = $this->y;
+            foreach ($cells as $i => $c) {
+                $w = $widths[$i];
+                $this->cur[] = ['r', $x, $yTop - $rowH, $w, $rowH, $fill];
+                $maxChars = max(4, (int)(($w - 6) / ($size * 0.52)));
+                $t = strlen($c) > $maxChars ? substr($c, 0, $maxChars - 3) . '...' : $c;
+                $this->cur[] = ['t', $size, $bold, $x + 3, $yTop - 12, $t];
+                $x += $w;
+            }
+            $this->y -= $rowH;
+        };
+        // caller handles repeat: draw header, then rows (re-draw header after breaks)
+        $drawRow($headers, true, 0.9);
+        $headerCopy = [$headers, true, 0.9];
+        $startCount = count($this->pages);
+        foreach ($rows as $r) {
+            $before = count($this->pages);
+            $drawRow(array_values($r), false, null);
+            if (count($this->pages) > $before) {
+                // page broke mid-table: re-draw header at top of new page.
+                // (rebuild: move last row's records after a fresh header)
+                $lastRow = array_splice($this->cur, -count($widths) * 2);
+                $drawRow($headerCopy[0], true, 0.9);
+                foreach ($lastRow as $rec) $this->cur[] = $rec;
+            }
+        }
     }
 
     private function wrap(string $text, int $size): array {
@@ -52,12 +91,17 @@ class MiniPDF {
         $this->pages[] = $this->cur;
         $contents = [];
         foreach ($this->pages as $page) {
-            $y = self::TOP; $s = '';
-            foreach ($page as $ln) {
-                list($size, $bold, $text) = $ln;
-                $f = $bold ? 'F2' : 'F1';
-                $s .= 'BT /' . $f . ' ' . $size . ' Tf ' . self::LEFT . ' ' . $y . ' Td (' . self::esc($text) . ") Tj ET\n";
-                $y -= $size * 1.35;
+            $s = '';
+            foreach ($page as $rec) {
+                if ($rec[0] === 'r') {
+                    list(, $x, $y, $w, $h, $fill) = $rec;
+                    if ($fill !== null) $s .= sprintf("%.2f %.2f %.2f rg %.2f %.2f %.2f %.2f re f\n", $fill, $fill, $fill, $x, $y, $w, $h);
+                    $s .= sprintf("0 0 0 rg %.2f %.2f %.2f %.2f re S\n", $x, $y, $w, $h);
+                } else {
+                    list(, $size, $bold, $x, $y, $text) = $rec;
+                    $f = $bold ? 'F2' : 'F1';
+                    $s .= 'BT /' . $f . ' ' . $size . ' Tf ' . $x . ' ' . $y . ' Td (' . self::esc($text) . ") Tj ET\n";
+                }
             }
             $contents[] = $s;
         }
