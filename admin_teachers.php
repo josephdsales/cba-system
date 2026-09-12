@@ -42,7 +42,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         set_flash('Teacher added.');
                     }
                 }
-            } catch (PDOException $ex) { set_flash('Error: username already exists.'); }
+            } catch (PDOException $ex) { set_flash('Save failed: ' . $ex->getMessage()); }
         }
         header('Location: admin_teachers.php'); exit;
     }

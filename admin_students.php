@@ -24,7 +24,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $st = db()->prepare("UPDATE users SET fullname=?, lastname=?, firstname=?, mi=?, gender=?, section_id=?, username=? WHERE id=? AND role='student'");
                 $st->execute([$fullname, $last, $first, $mi, $gender, $section ?: null, $username, $id]);
                 set_flash('Student details updated.');
-            } catch (PDOException $ex) { set_flash('Error: username already exists.'); }
+            } catch (PDOException $ex) { set_flash('Save failed: ' . $ex->getMessage()); }
         }
         header('Location: admin_students.php'); exit;
     }
