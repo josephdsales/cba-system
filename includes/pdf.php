@@ -6,7 +6,12 @@ class MiniPDF {
     private $pages = [];
     private $cur = [];
     private $y = 800;
+    private $footer = '';
     const LEFT = 50; const TOP = 800; const BOTTOM = 50; const PW = 595;
+
+    public function setFooter(string $text): void {
+        $this->footer = $text;
+    }
 
     public function addLine(string $text, int $size = 11, bool $bold = false, int $gap = 0): void {
         $h = $size * 1.35;
@@ -90,7 +95,8 @@ class MiniPDF {
     public function render(): string {
         $this->pages[] = $this->cur;
         $contents = [];
-        foreach ($this->pages as $page) {
+        $totalPages = count($this->pages);
+        foreach ($this->pages as $pi => $page) {
             $s = '';
             foreach ($page as $rec) {
                 if ($rec[0] === 'r') {
@@ -102,6 +108,10 @@ class MiniPDF {
                     $f = $bold ? 'F2' : 'F1';
                     $s .= 'BT /' . $f . ' ' . $size . ' Tf ' . $x . ' ' . $y . ' Td (' . self::esc($text) . ") Tj ET\n";
                 }
+            }
+            if ($this->footer !== '') {
+                $s .= 'BT /F1 8 Tf ' . self::LEFT . ' 30 Td (' . self::esc($this->footer) . ") Tj ET\n";
+                $s .= 'BT /F1 8 Tf 470 30 Td (Page ' . ($pi + 1) . ' of ' . $totalPages . ") Tj ET\n";
             }
             $contents[] = $s;
         }
