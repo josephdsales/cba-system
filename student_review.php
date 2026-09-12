@@ -48,7 +48,7 @@ include __DIR__ . '/includes/header.php';
   $ok = !empty($q['is_correct']);
   $mine = $q['student_answer'] ?? '';
 ?>
-<div class="q screen-only">
+<div class="q">
   <h3><?= $i++ ?>. <?= e($q['question_text']) ?>
     <?= $ok ? '<span class="badge b-published">✓ Correct</span>' : '<span class="badge b-closed">✗ Incorrect</span>' ?>
     <small class="hint"><?= e($q['points_earned']) ?>/<?= e($q['points']) ?> pt(s)</small></h3>
