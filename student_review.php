@@ -22,6 +22,7 @@ $st->execute([$attempt_id, $attempt['exam_id']]);
 $items = $st->fetchAll();
 
 $title = 'Review: ' . $attempt['title'];
+$taken_fmt = date('m-d-Y H:i:s', strtotime($attempt['submitted_at']));
 include __DIR__ . '/includes/header.php';
 ?>
 <div class="card">
@@ -30,20 +31,18 @@ include __DIR__ . '/includes/header.php';
   <h2 style="margin:0 0 4px"><?= e($attempt['title']) ?></h2>
   <p style="margin:0 0 16px" class="hint">Examination Result</p>
   <p style="margin:6px 0">Student: <b><?= e($user['fullname']) ?></b></p>
-  <p style="margin:6px 0">Date taken: <b><?= e($attempt['submitted_at']) ?></b></p>
+  <p style="margin:6px 0">Date taken: <b><?= e($taken_fmt) ?></b></p>
   <p style="margin:6px 0">Score: <b><?= e($attempt['score']) ?>/<?= e($attempt['total']) ?> (<?= e($attempt['percentage']) ?>%)</b></p>
   <p style="margin:10px 0;font-size:1.2rem"><?= $attempt['percentage'] >= $attempt['passing_percent'] ? '<span class="badge b-published">PASSED</span>' : '<span class="badge b-closed">FAILED</span>' ?></p>
 </div>
 <div class="card screen-only">
   <p style="margin:0"><b>Score: <?= e($attempt['score']) ?>/<?= e($attempt['total']) ?>
     (<?= e($attempt['percentage']) ?>%)</b>
-    <?= $attempt['percentage'] >= $attempt['passing_percent'] ? '<span class="badge b-published">PASSED</span>' : '<span class="badge b-closed">FAILED</span>' ?>
-    <br><small class="hint">Submitted <?= e($attempt['submitted_at']) ?> · ✓ = your answer was correct, ✗ = incorrect (correct answers are not shown)</small></p>
+    <?= $attempt['percentage'] >= $attempt['passing_percent'] ? '<span class="badge b-published">PASSED</span>' : '<span class="badge b-closed">FAILED</span>' ?></p>
   <div class="btnrow no-print">
     <button class="btn" type="button" onclick="window.print()">⬇ Download as PDF</button>
     <a class="btn ghost" href="student_scores.php">Back to scores</a>
   </div>
-  <p class="hint no-print">Tip: the PDF contains only the result slip above (title, date, score, result). In the print dialog choose <b>Save as PDF</b>.</p>
 </div>
 <?php $i = 1; foreach ($items as $q):
   $ok = !empty($q['is_correct']);
