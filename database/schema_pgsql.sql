@@ -9,12 +9,16 @@ CREATE TABLE IF NOT EXISTS sections (
   name VARCHAR(100) NOT NULL UNIQUE,
   description VARCHAR(255) NULL,
   created_by INT NULL,
+  assigned_teacher_id INT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS users (
   id SERIAL PRIMARY KEY,
   fullname VARCHAR(150) NOT NULL,
+  lastname VARCHAR(100) NULL,
+  firstname VARCHAR(100) NULL,
+  mi VARCHAR(10) NULL,
   gender VARCHAR(10) NOT NULL DEFAULT 'Other'
     CHECK (gender IN ('Male','Female','Other')),
   section_id INT NULL REFERENCES sections(id) ON DELETE SET NULL,
@@ -43,7 +47,7 @@ CREATE TABLE IF NOT EXISTS questions (
   exam_id INT NOT NULL REFERENCES exams(id) ON DELETE CASCADE,
   question_text TEXT NOT NULL,
   qtype VARCHAR(15) NOT NULL DEFAULT 'mcq'
-    CHECK (qtype IN ('mcq','truefalse','identification')),
+    CHECK (qtype IN ('mcq','truefalse','identification','essay')),
   option_a VARCHAR(500) NULL,
   option_b VARCHAR(500) NULL,
   option_c VARCHAR(500) NULL,
@@ -62,6 +66,7 @@ CREATE TABLE IF NOT EXISTS attempts (
   percentage NUMERIC(5,2) NOT NULL DEFAULT 0,
   started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   submitted_at TIMESTAMP NULL,
+  needs_grading SMALLINT NOT NULL DEFAULT 0,
   UNIQUE (exam_id, student_id)
 );
 

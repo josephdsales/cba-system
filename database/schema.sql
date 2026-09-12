@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS sections (
   name VARCHAR(100) NOT NULL UNIQUE,
   description VARCHAR(255) NULL,
   created_by INT NULL,
+  assigned_teacher_id INT NULL COMMENT 'NULL = shared; set = visible only to that teacher (+creator)',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
 
@@ -21,6 +22,9 @@ CREATE TABLE IF NOT EXISTS sections (
 CREATE TABLE IF NOT EXISTS users (
   id INT AUTO_INCREMENT PRIMARY KEY,
   fullname VARCHAR(150) NOT NULL,
+  lastname VARCHAR(100) NULL,
+  firstname VARCHAR(100) NULL,
+  mi VARCHAR(10) NULL,
   gender ENUM('Male','Female','Other') NOT NULL DEFAULT 'Other',
   section_id INT NULL,
   username VARCHAR(60) NOT NULL UNIQUE,
@@ -53,7 +57,7 @@ CREATE TABLE IF NOT EXISTS questions (
   id INT AUTO_INCREMENT PRIMARY KEY,
   exam_id INT NOT NULL,
   question_text TEXT NOT NULL,
-  qtype ENUM('mcq','truefalse','identification') NOT NULL DEFAULT 'mcq',
+  qtype ENUM('mcq','truefalse','identification','essay') NOT NULL DEFAULT 'mcq',
   option_a VARCHAR(500) NULL,
   option_b VARCHAR(500) NULL,
   option_c VARCHAR(500) NULL,
@@ -75,6 +79,7 @@ CREATE TABLE IF NOT EXISTS attempts (
   percentage DECIMAL(5,2) NOT NULL DEFAULT 0,
   started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   submitted_at TIMESTAMP NULL,
+  needs_grading SMALLINT NOT NULL DEFAULT 0 COMMENT '1 = has essay answers awaiting manual grading',
   UNIQUE KEY uq_attempt (exam_id, student_id),
   CONSTRAINT fk_attempts_exam FOREIGN KEY (exam_id)
     REFERENCES exams(id) ON DELETE CASCADE,

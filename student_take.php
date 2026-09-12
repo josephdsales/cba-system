@@ -38,11 +38,13 @@ $remain = max(1, $exam['time_limit_minutes'] * 60 - $elapsed);
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     check_csrf();
     $score = 0; $total = array_sum(array_column($questions, 'points'));
+    $needs_grading = 0;
     $ins = db()->prepare('INSERT INTO answers (attempt_id, question_id, student_answer, is_correct, points_earned) VALUES (?, ?, ?, ?, ?)');
     db()->prepare('DELETE FROM answers WHERE attempt_id=?')->execute([$attempt_id]);
     foreach ($questions as $q) {
         $ans = trim($_POST['q_' . $q['id']] ?? '');
         $correct = false;
+        if ($q['qtype'] === 'essay') { $needs_grading = 1; }
         if ($q['qtype'] === 'mcq') $correct = (strtoupper(substr($ans, 0, 1)) === strtoupper($q['correct_answer']));
         elseif ($q['qtype'] === 'truefalse') $correct = (strtolower($ans) === strtolower($q['correct_answer']));
         else $correct = (strtolower($ans) === strtolower(trim($q['correct_answer'])));
@@ -51,9 +53,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $ins->execute([$attempt_id, $q['id'], $ans !== '' ? $ans : null, $correct ? 1 : 0, $earned]);
     }
     $pct = $total > 0 ? round($score / $total * 100, 2) : 0;
-    $st = db()->prepare('UPDATE attempts SET score=?, total=?, percentage=?, submitted_at=NOW() WHERE id=?');
-    $st->execute([$score, $total, $pct, $attempt_id]);
-    set_flash("Exam submitted. Your score: $score/$total ($pct%).");
+    $st = db()->prepare('UPDATE attempts SET score=?, total=?, percentage=?, submitted_at=NOW(), needs_grading=? WHERE id=?');
+    $st->execute([$score, $total, $pct, $needs_grading, $attempt_id]);
+    set_flash($needs_grading ? "Exam submitted. Partial score: $score/$total — essay answers are for checking."
+        : "Exam submitted. Your score: $score/$total ($pct%).");
     header('Location: student_scores.php'); exit;
 }
 
@@ -80,6 +83,8 @@ include __DIR__ . '/includes/header.php';
     <?php elseif ($q['qtype'] === 'truefalse'): ?>
       <label class="opt"><input type="radio" name="q_<?= $q['id'] ?>" value="True" required> True</label>
       <label class="opt"><input type="radio" name="q_<?= $q['id'] ?>" value="False" required> False</label>
+    <?php elseif ($q['qtype'] === 'essay'): ?>
+      <textarea name="q_<?= $q['id'] ?>" placeholder="Write your answer here" required rows="5"></textarea>
     <?php else: ?>
       <input type="text" name="q_<?= $q['id'] ?>" placeholder="Type your answer" required>
     <?php endif; ?>

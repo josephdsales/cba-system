@@ -3,7 +3,7 @@ require __DIR__ . '/includes/config.php';
 require __DIR__ . '/includes/auth.php';
 $user = require_role('teacher');
 
-$sections = db()->query('SELECT * FROM sections ORDER BY name')->fetchAll();
+$sections = visible_sections((int)$user['id']);
 $show_new = isset($_GET['action']) && $_GET['action'] === 'new';
 $edit = null;
 if (isset($_GET['edit'])) {

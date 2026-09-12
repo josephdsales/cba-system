@@ -63,6 +63,7 @@ include __DIR__ . '/includes/header.php';
     <?php endforeach; ?>
   <?php else: ?>
     <p style="margin:6px 0">Your answer: <b><?= e($mine !== '' && $mine !== null ? $mine : '(blank)') ?></b></p>
+    <?php if ($q['qtype'] === 'essay' && !empty($attempt['needs_grading'])): ?><p class="hint">For checking — your teacher hasn't scored this yet.</p><?php endif; ?>
   <?php endif; ?>
 </div>
 <?php endforeach; ?>

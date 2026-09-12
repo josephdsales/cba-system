@@ -30,6 +30,7 @@ $flash_msg = flash();
           <a href="teacher_exams.php">Exams</a>
           <a href="teacher_sections.php">Sections</a>
           <a href="teacher_results.php">Results</a>
+          <a href="teacher_grade.php">Grading</a>
         <?php else: ?>
           <a href="student_exams.php">Exams</a>
           <a href="student_scores.php">My Scores</a>

@@ -16,8 +16,9 @@ $user = $me;
 $teachers = db()->query("SELECT id, fullname FROM users WHERE role='teacher' ORDER BY (lastname IS NULL), lastname, firstname, fullname")->fetchAll();
 
 function can_edit_section(array $s, array $me): bool {
-    if ($me['role'] === 'admin') return true;
-    return (int)($s['created_by'] ?? 0) === (int)$me['id'];
+    // Admin sees every section; a teacher's list is already filtered to
+    // visible sections (own + assigned + shared), all editable.
+    return true;
 }
 
 $edit = null;
@@ -47,8 +48,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $st = db()->prepare('UPDATE sections SET name=?, description=?, assigned_teacher_id=? WHERE id=?');
                             $st->execute([$name, $desc ?: null, $assigned ?: null, $id]);
                         } else {
-                            $st = db()->prepare('UPDATE sections SET name=?, description=? WHERE id=? AND created_by=?');
-                            $st->execute([$name, $desc ?: null, $id, $me['id']]);
+                            $st = db()->prepare('UPDATE sections SET name=?, description=? WHERE id=?');
+                            $st->execute([$name, $desc ?: null, $id]);
                         }
                         set_flash('Section updated.');
                     }

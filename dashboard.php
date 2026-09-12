@@ -26,11 +26,13 @@ if ($user['role'] === 'admin') {
     $st = db()->prepare('SELECT COUNT(*) c FROM exams WHERE teacher_id=?');
     $st->execute([$user['id']]); $e = $st->fetch()['c'];
     $sec = db()->query('SELECT COUNT(*) c FROM sections')->fetch()['c'];
+    $st = db()->prepare("SELECT COUNT(*) c FROM attempts a JOIN exams e ON e.id=a.exam_id WHERE e.teacher_id=? AND a.submitted_at IS NOT NULL AND a.needs_grading=1");
+    $st->execute([$user['id']]); $pend = $st->fetch()['c'];
     ?>
     <div class="grid two">
       <div class="card"><h3 style="margin-top:0">📝 My Exams (<?= $e ?>)</h3>
         <p class="hint">Create exams, add questions manually, or import from Word (.docx).</p>
-        <div class="btnrow"><a class="btn" href="teacher_exams.php">Open Exams</a><a class="btn ghost" href="teacher_exams.php?action=new">+ New Exam</a></div></div>
+        <div class="btnrow"><a class="btn" href="teacher_exams.php">Open Exams</a><a class="btn ghost" href="teacher_exams.php?action=new">+ New Exam</a><a class="btn ghost" href="teacher_grade.php">Grading (<?= $pend ?>)</a></div></div>
       <div class="card"><h3 style="margin-top:0">👥 Sections (<?= $sec ?>)</h3>
         <p class="hint">Add, edit, delete sections used at student registration.</p>
         <div class="btnrow"><a class="btn" href="teacher_sections.php">Manage Sections</a><a class="btn ghost" href="teacher_results.php">View Results</a></div></div>

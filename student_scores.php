@@ -16,7 +16,7 @@ include __DIR__ . '/includes/header.php';
   <tr>
     <td><?= e($r['title']) ?></td><td><?= e($r['score']) ?>/<?= e($r['total']) ?></td>
     <td><b><?= e($r['percentage']) ?>%</b></td>
-    <td><?= $r['percentage'] >= $r['passing_percent'] ? '<span class="badge b-published">PASSED</span>' : '<span class="badge b-closed">FAILED</span>' ?></td>
+    <td><?= !empty($r['needs_grading']) ? '<span class="badge b-draft">FOR CHECKING</span>' : ($r['percentage'] >= $r['passing_percent'] ? '<span class="badge b-published">PASSED</span>' : '<span class="badge b-closed">FAILED</span>') ?></td>
     <td><?= e($r['submitted_at']) ?></td>
     <td><a class="btn small ghost" href="student_review.php?attempt_id=<?= $r['id'] ?>">Review</a></td>
   </tr>

@@ -21,12 +21,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $qid = (int)($_POST['qid'] ?? 0);
         $text = trim($_POST['question_text'] ?? '');
         $qtype = $_POST['qtype'] ?? 'mcq';
-        if (!in_array($qtype, ['mcq','truefalse','identification'], true)) $qtype = 'mcq';
+        if (!in_array($qtype, ['mcq','truefalse','identification','essay'], true)) $qtype = 'mcq';
         $oa = trim($_POST['option_a'] ?? ''); $ob = trim($_POST['option_b'] ?? '');
         $oc = trim($_POST['option_c'] ?? ''); $od = trim($_POST['option_d'] ?? '');
         $correct = trim($_POST['correct_answer'] ?? '');
         $points = max(1, (int)($_POST['points'] ?? 1));
-        if ($text === '' || $correct === '') set_flash('Question text and correct answer are required.');
+        if ($text === '' || ($correct === '' && $qtype !== 'essay')) set_flash('Question text and correct answer are required (essays need no answer).');
         else {
             if ($qtype === 'mcq') $correct = strtoupper(substr($correct, 0, 1));
             if ($qid > 0) {
@@ -71,7 +71,7 @@ include __DIR__ . '/includes/header.php';
     <label>Question</label><textarea name="question_text" required><?= e($edit['question_text'] ?? '') ?></textarea>
     <div class="grid two">
       <div><label>Type</label><select name="qtype" id="qtype">
-        <?php foreach (['mcq'=>'Multiple choice (A–D)','truefalse'=>'True / False','identification'=>'Identification (typed answer)'] as $k => $v): ?>
+        <?php foreach (['mcq'=>'Multiple choice (A–D)','truefalse'=>'True / False','identification'=>'Identification (typed answer)','essay'=>'Essay (manual grading)'] as $k => $v): ?>
           <option value="<?= $k ?>" <?= (($edit['qtype'] ?? 'mcq') === $k) ? 'selected' : '' ?>><?= $v ?></option>
         <?php endforeach; ?>
       </select></div>

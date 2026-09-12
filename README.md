@@ -9,9 +9,10 @@ Mobile-friendly online exam system: **PHP + MySQL**. Upload to any web host, ope
 - **Teacher**:
   - Create exams (title, section, time limit, passing %, draft/published/closed)
   - **Import exam from Word (.docx)** — see format below
-  - **Add / edit / delete sections**
-  - Add / edit / delete questions (MCQ, True/False, Identification)
-  - View results per exam
+  - **Add / edit / delete own sections** (teacher-created sections are visible only to that teacher)
+- **Admin & sections**: admin sees all sections and can **assign a section to a specific teacher** (or leave it shared). Assigned sections are read-only for the teacher.
+  - Add / edit / delete questions (MCQ, True/False, Identification, **Essay**)
+  - View results per exam + question analysis + **grade essays** (pending list with counts)
 - **Reports**: per-exam **scores of students + summary (takers, average, highest 🏆 with name, lowest with name)**; printable.
 - **Mobile responsive**: works on phones, tablets, desktops.
 - **Timer + auto-submit**, one submission per student, anti-retake.
