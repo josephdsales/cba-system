@@ -40,7 +40,7 @@ include __DIR__ . '/includes/header.php';
     (<?= e($attempt['percentage']) ?>%)</b>
     <?= $attempt['percentage'] >= $attempt['passing_percent'] ? '<span class="badge b-published">PASSED</span>' : '<span class="badge b-closed">FAILED</span>' ?></p>
   <div class="btnrow no-print">
-    <button class="btn" type="button" onclick="window.print()">⬇ Download as PDF</button>
+    <a class="btn" href="student_download.php?attempt_id=<?= $attempt_id ?>">⬇ Download as PDF</a>
     <a class="btn ghost" href="student_scores.php">Back to scores</a>
   </div>
 </div>
