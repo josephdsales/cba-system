@@ -52,7 +52,7 @@ foreach ($exams as $x) { if ((int)$x['id'] === $sel) { $selTitle = $x['title']; 
   <tr><th>#</th><th>Student</th><th>Section</th><th>Score</th><th>%</th><th>Submitted</th><th></th></tr>
   <?php $i = 1; foreach ($rows as $r): ?>
   <tr><td><?= $i++ ?></td><td><?= e($r['fullname']) ?></td><td><?= e($r['section_name'] ?? '—') ?></td>
-  <td><?= e($r['score']) ?>/<?= e($r['total']) ?></td><td><b><?= e($r['percentage']) ?>%</b></td><td><?= e($r['submitted_at']) ?></td>
+  <td><?= e($r['score']) ?>/<?= e($r['total']) ?></td><td><b><?= e($r['percentage']) ?>%</b></td><td><?= e(date('m-d-Y H:i:s', strtotime($r['submitted_at']))) ?></td>
   <td><a class="btn small ghost" href="teacher_review.php?attempt_id=<?= $r['id'] ?>">Review</a></td></tr>
   <?php endforeach; ?>
 </table></div></div>

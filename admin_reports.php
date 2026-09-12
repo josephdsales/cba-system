@@ -55,7 +55,7 @@ include __DIR__ . '/includes/header.php';
   <?php $i = 1; foreach ($rows as $r): ?>
   <tr><td><?= $i++ ?></td><td><?= e($r['fullname']) ?> <small class="hint"><?= e($r['username']) ?></small></td>
   <td><?= e($r['section_name'] ?? '—') ?></td><td><?= e($r['score']) ?>/<?= e($r['total']) ?></td>
-  <td><b><?= e($r['percentage']) ?>%</b></td><td><?= e($r['submitted_at']) ?></td></tr>
+  <td><b><?= e($r['percentage']) ?>%</b></td><td><?= e(date('m-d-Y H:i:s', strtotime($r['submitted_at']))) ?></td></tr>
   <?php endforeach; ?>
 </table></div></div>
 <?php elseif ($sel > 0): ?>
