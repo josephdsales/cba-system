@@ -20,6 +20,7 @@ $st->execute([$attempt_id, $attempt['exam_id']]);
 $items = $st->fetchAll();
 
 $pdf = new MiniPDF();
+$pdf->setFooter('DOÑA JUANA CHIOCO NATIONAL HIGH SCHOOL - Computer-based Assessment - JDS');
 $pdf->addLine($attempt['title'], 16, true);
 $pdf->addLine('Student review (with answer key)', 11);
 $pdf->blank();

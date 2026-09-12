@@ -19,6 +19,7 @@ $st->execute([$exam_id]);
 $rows = $st->fetchAll();
 
 $pdf = new MiniPDF();
+$pdf->setFooter('DOÑA JUANA CHIOCO NATIONAL HIGH SCHOOL - Computer-based Assessment - JDS');
 $pdf->addLine($exam['title'], 16, true);
 $pdf->addLine('Summary of scores', 11);
 $pdf->addLine('Generated: ' . date('m-d-Y H:i:s'), 11);
