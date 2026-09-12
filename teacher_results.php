@@ -55,7 +55,7 @@ foreach ($exams as $x) { if ((int)$x['id'] === $sel) { $selTitle = $x['title']; 
       <?php foreach ($exams as $x): ?><option value="<?= $x['id'] ?>" <?= $sel === (int)$x['id'] ? 'selected' : '' ?>><?= e($x['title']) ?></option><?php endforeach; ?>
     </select>
     <button class="btn" type="submit">View</button>
-    <?php if ($rows): ?><button class="btn ghost" type="button" onclick="window.print()">⬇ Download Summary (PDF)</button><?php endif; ?>
+    <?php if ($rows): ?><a class="btn ghost" href="teacher_summary_download.php?exam_id=<?= $sel ?>">⬇ Download Summary (PDF)</a><?php endif; ?>
   </form>
 </div>
 <?php if ($sel && $summary): ?>
