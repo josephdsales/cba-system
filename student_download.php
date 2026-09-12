@@ -7,7 +7,7 @@ require __DIR__ . '/includes/pdf.php';
 $user = require_role('student');
 
 $attempt_id = (int)($_GET['attempt_id'] ?? 0);
-$st = db()->prepare("SELECT a.*, e.title FROM attempts a
+$st = db()->prepare("SELECT a.*, e.title, e.passing_percent FROM attempts a
     JOIN exams e ON e.id=a.exam_id
     WHERE a.id=? AND a.student_id=? AND a.submitted_at IS NOT NULL");
 $st->execute([$attempt_id, $user['id']]);
