@@ -38,13 +38,15 @@ if ($rows) {
     $pdf->addLine('Highest: ' . $hi . '% (' . implode(', ', $topNames) . ')');
     $pdf->addLine('Lowest: ' . $lo . '% (' . implode(', ', $lowNames) . ')');
     $pdf->blank();
+    $trows = [];
     $i = 1;
     foreach ($rows as $r) {
-        $pdf->addLine($i . '. ' . $r['fullname'] . ' (' . ($r['section_name'] ?? '-') . ') - '
-            . $r['score'] . '/' . $r['total'] . ' (' . $r['percentage'] . '%) - '
-            . date('m-d-Y H:i:s', strtotime($r['submitted_at'])));
-        $i++;
+        $trows[] = [$i++, $r['fullname'], ($r['section_name'] ?? '-'),
+            $r['score'] . '/' . $r['total'], $r['percentage'] . '%',
+            date('m-d-Y H:i:s', strtotime($r['submitted_at']))];
     }
+    $pdf->table(['#', 'Student', 'Section', 'Score', '%', 'Submitted'],
+        [28, 168, 80, 62, 45, 112], $trows, 9);
 } else {
     $pdf->addLine('No submissions yet.');
 }
