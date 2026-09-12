@@ -27,10 +27,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             try {
                 if ($id > 0) {
                     if ($pass !== '') {
-                        $st = db()->prepare('UPDATE users SET fullname=?, lastname=?, firstname=?, mi=?, gender=?, username=?, password_hash=? WHERE id=? AND role='teacher'");
+                        $st = db()->prepare("UPDATE users SET fullname=?, lastname=?, firstname=?, mi=?, gender=?, username=?, password_hash=? WHERE id=? AND role='teacher'");
                         $st->execute([$fullname, $last, $first, $mi, $gender, $username, password_hash($pass, PASSWORD_DEFAULT), $id]);
                     } else {
-                        $st = db()->prepare('UPDATE users SET fullname=?, lastname=?, firstname=?, mi=?, gender=?, username=? WHERE id=? AND role='teacher'");
+                        $st = db()->prepare("UPDATE users SET fullname=?, lastname=?, firstname=?, mi=?, gender=?, username=? WHERE id=? AND role='teacher'");
                         $st->execute([$fullname, $last, $first, $mi, $gender, $username, $id]);
                     }
                     set_flash('Teacher updated.');
