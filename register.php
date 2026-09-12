@@ -9,12 +9,15 @@ catch (Throwable $ex) { $sections = []; $error = 'Database not ready. Ask admin 
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     check_csrf();
-    $fullname = trim($_POST['fullname'] ?? '');
+    $last = trim($_POST['lastname'] ?? '');
+    $first = trim($_POST['firstname'] ?? '');
+    $mi = trim($_POST['mi'] ?? '');
+    $fullname = $last . ', ' . $first . ($mi !== '' ? ' ' . rtrim($mi, '.') . '.' : '');
     $gender   = $_POST['gender'] ?? '';
     $section  = (int)($_POST['section_id'] ?? 0);
     $username = trim($_POST['username'] ?? '');
     $p1 = $_POST['password'] ?? ''; $p2 = $_POST['password2'] ?? '';
-    if (strlen($fullname) < 3) $error = 'Please enter your full name.';
+    if (strlen($last) < 2 || strlen($first) < 2) $error = 'Please enter your last name and first name.';
     elseif (!in_array($gender, ['Male','Female','Other'], true)) $error = 'Please select gender.';
     elseif ($section <= 0) $error = 'Please select your section.';
     elseif (strlen($username) < 3) $error = 'Username must be at least 3 characters.';
@@ -40,8 +43,14 @@ include __DIR__ . '/includes/header.php';
   <?php if ($error): ?><p style="color:#b91c1c"><b><?= e($error) ?></b></p><?php endif; ?>
   <form method="post">
     <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
-    <label>Fullname</label>
-    <input type="text" name="fullname" required value="<?= e($_POST['fullname'] ?? '') ?>" placeholder="e.g. Juan D. Cruz">
+    <div class="grid two">
+      <div><label>Last name</label>
+      <input type="text" name="lastname" required value="<?= e($_POST['lastname'] ?? '') ?>" placeholder="e.g. Cruz"></div>
+      <div><label>First name</label>
+      <input type="text" name="firstname" required value="<?= e($_POST['firstname'] ?? '') ?>" placeholder="e.g. Juan"></div>
+    </div>
+    <label>Middle initial (optional)</label>
+    <input type="text" name="mi" maxlength="3" value="<?= e($_POST['mi'] ?? '') ?>" placeholder="e.g. D">
     <label>Gender</label>
     <select name="gender" required>
       <option value="">-- Select --</option>
