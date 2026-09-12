@@ -41,6 +41,28 @@ if ($sel && $rows) {
     }
     usort($analysis, function ($a, $b) { return $b['pct'] <=> $a['pct']; });
 }
+$sort = $_GET['sort'] ?? 'score';
+if (!in_array($sort, ['score', 'date', 'name'], true)) $sort = 'score';
+$sdir = ($_GET['dir'] ?? 'desc') === 'asc' ? 'asc' : 'desc';
+if ($rows) {
+    usort($rows, function ($a, $b) use ($sort, $sdir) {
+        switch ($sort) {
+            case 'date': $c = strcmp($a['submitted_at'], $b['submitted_at']); break;
+            case 'name':
+                $an = ($a['lastname'] ?? '') !== '' ? $a['lastname'] . ' ' . $a['firstname'] : $a['fullname'];
+                $bn = ($b['lastname'] ?? '') !== '' ? $b['lastname'] . ' ' . $b['firstname'] : $b['fullname'];
+                $c = strcasecmp($an, $bn); break;
+            default: $c = (float)$a['percentage'] <=> (float)$b['percentage'];
+        }
+        return $sdir === 'asc' ? $c : -$c;
+    });
+}
+function sort_link($label, $key) {
+    global $sel, $topn, $sort, $sdir;
+    $nd = ($sort === $key && $sdir === 'desc') ? 'asc' : 'desc';
+    $arrow = $sort === $key ? ($sdir === 'desc' ? ' ▼' : ' ▲') : '';
+    return '<a href="teacher_results.php?exam_id=' . $sel . '&topn=' . $topn . '&sort=' . $key . '&dir=' . $nd . '">' . e($label) . $arrow . '</a>';
+}
 include __DIR__ . '/includes/header.php';
 $selTitle = '';
 foreach ($exams as $x) { if ((int)$x['id'] === $sel) { $selTitle = $x['title']; break; } }
@@ -69,7 +91,7 @@ foreach ($exams as $x) { if ((int)$x['id'] === $sel) { $selTitle = $x['title']; 
 <div class="card no-print">
   <h3 style="margin-top:0">Question analysis
     <small class="hint">Top
-      <?php foreach ([3, 5, 10] as $n): ?><a href="teacher_results.php?exam_id=<?= $sel ?>&topn=<?= $n ?>"><?= $n ?></a><?= $n !== 10 ? ' · ' : '' ?><?php endforeach; ?>
+      <?php foreach ([3, 5, 10] as $n): ?><a href="teacher_results.php?exam_id=<?= $sel ?>&topn=<?= $n ?>&sort=<?= $sort ?>&dir=<?= $sdir ?>"><?= $n ?></a><?= $n !== 10 ? ' · ' : '' ?><?php endforeach; ?>
     </small></h3>
   <div class="grid two">
     <div><h4 style="color:var(--ok)">✓ Easiest <?= $topn ?></h4>
@@ -84,7 +106,7 @@ foreach ($exams as $x) { if ((int)$x['id'] === $sel) { $selTitle = $x['title']; 
 </div>
 <?php endif; ?>
 <div class="card"><div class="table-wrap"><table>
-  <tr><th>#</th><th>Student</th><th>Section</th><th>Score</th><th>%</th><th>Submitted</th><th></th></tr>
+  <tr><th>#</th><th><?= sort_link('Student', 'name') ?></th><th>Section</th><th><?= sort_link('Score', 'score') ?></th><th><?= sort_link('%', 'score') ?></th><th><?= sort_link('Submitted', 'date') ?></th><th></th></tr>
   <?php $i = 1; foreach ($rows as $r): ?>
   <tr><td><?= $i++ ?></td><td><?= e($r['fullname']) ?></td><td><?= e($r['section_name'] ?? '—') ?></td>
   <td><?= e($r['score']) ?>/<?= e($r['total']) ?></td><td><b><?= e($r['percentage']) ?>%</b></td><td><?= e(date('m-d-Y H:i:s', strtotime($r['submitted_at']))) ?></td>
