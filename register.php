@@ -25,9 +25,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     elseif ($p1 !== $p2) $error = 'Passwords do not match.';
     else {
         try {
-            $st = db()->prepare("INSERT INTO users (fullname, lastname, firstname, gender, section_id, username, password_hash, role)
-                                 VALUES (?, ?, ?, ?, ?, ?, ?, 'student')");
-            $st->execute([$fullname, $last, $first, $gender, $section, $username, password_hash($p1, PASSWORD_DEFAULT)]);
+            $st = db()->prepare("INSERT INTO users (fullname, lastname, firstname, mi, gender, section_id, username, password_hash, role)
+                                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'student')");
+            $st->execute([$fullname, $last, $first, ($mi !== '' ? rtrim($mi, '.') . '.' : null), $gender, $section, $username, password_hash($p1, PASSWORD_DEFAULT)]);
             set_flash('Account created. You can now log in.');
             header('Location: index.php'); exit;
         } catch (PDOException $ex) {

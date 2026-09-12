@@ -6,6 +6,28 @@ $user = require_role('admin');
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     check_csrf();
     $action = $_POST['action'] ?? '';
+    if ($action === 'save') {
+        $id = (int)($_POST['id'] ?? 0);
+        $last = trim($_POST['lastname'] ?? '');
+        $first = trim($_POST['firstname'] ?? '');
+        $mi_raw = trim($_POST['mi'] ?? '');
+        $mi = $mi_raw !== '' ? rtrim($mi_raw, '.') . '.' : null;
+        $gender = $_POST['gender'] ?? 'Other';
+        if (!in_array($gender, ['Male', 'Female', 'Other'], true)) $gender = 'Other';
+        $section = (int)($_POST['section_id'] ?? 0);
+        $username = trim($_POST['username'] ?? '');
+        if (strlen($last) < 2 || strlen($first) < 2 || strlen($username) < 3) {
+            set_flash('Last name, first name (min 2 chars) and username (min 3 chars) are required.');
+        } else {
+            try {
+                $fullname = $last . ', ' . $first . ($mi ? ' ' . $mi : '');
+                $st = db()->prepare("UPDATE users SET fullname=?, lastname=?, firstname=?, mi=?, gender=?, section_id=?, username=? WHERE id=? AND role='student'");
+                $st->execute([$fullname, $last, $first, $mi, $gender, $section ?: null, $username, $id]);
+                set_flash('Student details updated.');
+            } catch (PDOException $ex) { set_flash('Error: username already exists.'); }
+        }
+        header('Location: admin_students.php'); exit;
+    }
     if ($action === 'reset') {
         $new = $_POST['new_password'] ?? '';
         if (strlen($new) < 6) set_flash('Reset password must be min 6 chars.');
@@ -31,9 +53,45 @@ if ($q !== '') {
     $st = db()->query("SELECT u.*, s.name AS section_name FROM users u LEFT JOIN sections s ON s.id=u.section_id WHERE u.role='student' ORDER BY (u.lastname IS NULL), u.lastname, u.firstname, u.fullname");
 }
 $students = $st->fetchAll();
+$sections = db()->query('SELECT * FROM sections ORDER BY name')->fetchAll();
+$edit = null;
+if (isset($_GET['edit'])) {
+    $st = db()->prepare("SELECT * FROM users WHERE id=? AND role='student'");
+    $st->execute([(int)$_GET['edit']]); $edit = $st->fetch();
+}
 $title = 'Manage Students';
 include __DIR__ . '/includes/header.php';
 ?>
+<?php if ($edit): ?>
+<div class="card">
+  <h3 style="margin-top:0">Edit student</h3>
+  <form method="post">
+    <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
+    <input type="hidden" name="action" value="save">
+    <input type="hidden" name="id" value="<?= $edit['id'] ?>">
+    <div class="grid two">
+      <div><label>Last name</label><input type="text" name="lastname" required value="<?= e($edit['lastname'] ?? '') ?>"></div>
+      <div><label>First name</label><input type="text" name="firstname" required value="<?= e($edit['firstname'] ?? '') ?>"></div>
+    </div>
+    <label>Middle initial (optional)</label>
+    <input type="text" name="mi" maxlength="3" value="<?= e($edit['mi'] ?? '') ?>">
+    <div class="grid two">
+      <div><label>Gender</label><select name="gender">
+        <?php foreach (['Male', 'Female', 'Other'] as $g): ?><option <?= (($edit['gender'] ?? '') === $g) ? 'selected' : '' ?>><?= $g ?></option><?php endforeach; ?>
+      </select></div>
+      <div><label>Section</label><select name="section_id">
+        <option value="0">— none —</option>
+        <?php foreach ($sections as $sec): ?><option value="<?= $sec['id'] ?>" <?= ((int)($edit['section_id'] ?? 0) === (int)$sec['id']) ? 'selected' : '' ?>><?= e($sec['name']) ?></option><?php endforeach; ?>
+      </select></div>
+    </div>
+    <label>Username</label>
+    <input type="text" name="username" required value="<?= e($edit['username']) ?>">
+    <p class="hint">Password: use Reset PW below to change it.</p>
+    <div class="btnrow"><button class="btn" type="submit">Save changes</button>
+    <a class="btn ghost" href="admin_students.php">Cancel</a></div>
+  </form>
+</div>
+<?php endif; ?>
 <div class="card">
   <form method="get" style="display:flex;gap:8px;flex-wrap:wrap">
     <input type="text" name="q" placeholder="Search name or username..." value="<?= e($q) ?>" style="flex:1;min-width:200px">
@@ -49,6 +107,7 @@ include __DIR__ . '/includes/header.php';
     <td><?= e($s['section_name'] ?? '—') ?></td><td><?= e($s['username']) ?></td>
     <td>
       <div class="btnrow" style="margin:0">
+        <a class="btn small ghost" href="admin_students.php?edit=<?= $s['id'] ?>">Edit</a>
         <form method="post" style="display:inline" onsubmit="return confirm('Reset password for <?= e($s['username']) ?>?')">
           <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
           <input type="hidden" name="action" value="reset"><input type="hidden" name="id" value="<?= $s['id'] ?>">
