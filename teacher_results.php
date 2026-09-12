@@ -66,7 +66,7 @@ foreach ($exams as $x) { if ((int)$x['id'] === $sel) { $selTitle = $x['title']; 
   <div class="card stat"><div class="n" style="color:var(--bad)"><?= $summary['lowest'] ?>%</div><div class="l">Lowest — <?= e($summary['low']) ?></div></div>
 </div>
 <?php if ($analysis): ?>
-<div class="card">
+<div class="card no-print">
   <h3 style="margin-top:0">Question analysis
     <small class="hint">Top
       <?php foreach ([3, 5, 10] as $n): ?><a href="teacher_results.php?exam_id=<?= $sel ?>&topn=<?= $n ?>"><?= $n ?></a><?= $n !== 10 ? ' · ' : '' ?><?php endforeach; ?>
