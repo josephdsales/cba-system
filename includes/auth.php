@@ -58,3 +58,15 @@ function check_csrf(): void {
         }
     }
 }
+
+// Sections visible to a teacher: own + assigned by admin + shared.
+// Admins don't use this (they see everything).
+function visible_sections(int $teacher_id): array {
+    $st = db()->prepare("SELECT s.*, t.fullname AS teacher_name,
+        (SELECT COUNT(*) FROM users u WHERE u.section_id=s.id) AS student_count
+        FROM sections s LEFT JOIN users t ON t.id=s.assigned_teacher_id
+        WHERE s.assigned_teacher_id IS NULL OR s.assigned_teacher_id=? OR s.created_by=?
+        ORDER BY s.name");
+    $st->execute([$teacher_id, $teacher_id]);
+    return $st->fetchAll();
+}
