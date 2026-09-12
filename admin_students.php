@@ -25,10 +25,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $q = trim($_GET['q'] ?? '');
 if ($q !== '') {
     $st = db()->prepare("SELECT u.*, s.name AS section_name FROM users u LEFT JOIN sections s ON s.id=u.section_id
-                         WHERE u.role='student' AND (u.fullname LIKE ? OR u.username LIKE ?) ORDER BY u.fullname");
+                         WHERE u.role='student' AND (u.fullname LIKE ? OR u.username LIKE ?) ORDER BY (u.lastname IS NULL), u.lastname, u.firstname, u.fullname");
     $st->execute(["%$q%", "%$q%"]);
 } else {
-    $st = db()->query("SELECT u.*, s.name AS section_name FROM users u LEFT JOIN sections s ON s.id=u.section_id WHERE u.role='student' ORDER BY u.fullname");
+    $st = db()->query("SELECT u.*, s.name AS section_name FROM users u LEFT JOIN sections s ON s.id=u.section_id WHERE u.role='student' ORDER BY (u.lastname IS NULL), u.lastname, u.firstname, u.fullname");
 }
 $students = $st->fetchAll();
 $title = 'Manage Students';

@@ -59,7 +59,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$teachers = db()->query("SELECT * FROM users WHERE role='teacher' ORDER BY fullname")->fetchAll();
+$teachers = db()->query("SELECT * FROM users WHERE role='teacher' ORDER BY (lastname IS NULL), lastname, firstname, fullname")->fetchAll();
 $title = 'Manage Teachers';
 include __DIR__ . '/includes/header.php';
 ?>
