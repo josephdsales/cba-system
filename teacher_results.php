@@ -20,7 +20,9 @@ if ($sel) {
     if ($rows) {
         $perc = array_column($rows, 'percentage');
         $summary = ['takers' => count($rows), 'average' => round(array_sum($perc) / count($perc), 2),
-            'highest' => max($perc), 'lowest' => min($perc), 'top' => $rows[0]['fullname'], 'low' => end($rows)['fullname']];
+            'highest' => max($perc), 'lowest' => min($perc),
+            'top' => implode(', ', array_column(array_filter($rows, function ($r) use ($perc) { return (float)$r['percentage'] == (float)max($perc); }), 'fullname')),
+            'low' => implode(', ', array_column(array_filter($rows, function ($r) use ($perc) { return (float)$r['percentage'] == (float)min($perc); }), 'fullname'))];
     }
 }
 $title = 'Exam Results';
