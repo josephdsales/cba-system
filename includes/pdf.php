@@ -44,8 +44,11 @@ class MiniPDF {
                 $w = $widths[$i];
                 $this->cur[] = ['r', $x, $yTop - $rowH, $w, $rowH, $fill];
                 $maxChars = max(4, (int)(($w - 6) / ($size * 0.52)));
-                $t = strlen($c) > $maxChars ? substr($c, 0, $maxChars - 3) . '...' : $c;
-                $this->cur[] = ['t', $size, $bold, $x + 3, $yTop - 12, $t];
+                $clen = function_exists('mb_strlen') ? mb_strlen($c, 'UTF-8') : strlen($c);
+                if ($clen > $maxChars) {
+                    $c = (function_exists('mb_substr') ? mb_substr($c, 0, $maxChars - 3, 'UTF-8') : substr($c, 0, $maxChars - 3)) . '...';
+                }
+                $this->cur[] = ['t', $size, $bold, $x + 3, $yTop - 12, $c];
                 $x += $w;
             }
             $this->y -= $rowH;
