@@ -13,27 +13,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
     if ($action === 'save') {
         $id = (int)($_POST['id'] ?? 0);
-        $fullname = trim($_POST['fullname'] ?? '');
+        $last = trim($_POST['lastname'] ?? '');
+        $first = trim($_POST['firstname'] ?? '');
+        $mi_raw = trim($_POST['mi'] ?? '');
+        $mi = $mi_raw !== '' ? rtrim($mi_raw, '.') . '.' : null;
+        $fullname = $last . ', ' . $first . ($mi ? ' ' . $mi : '');
         $gender = $_POST['gender'] ?? 'Other';
+        if (!in_array($gender, ['Male', 'Female', 'Other'], true)) $gender = 'Other';
         $username = trim($_POST['username'] ?? '');
         $pass = $_POST['password'] ?? '';
-        if (strlen($fullname) < 3 || strlen($username) < 3) set_flash('Fullname and username required (min 3 chars).');
+        if (strlen($last) < 2 || strlen($first) < 2 || strlen($username) < 3) set_flash('Last name, first name (min 2 chars) and username (min 3 chars) required.');
         else {
             try {
                 if ($id > 0) {
                     if ($pass !== '') {
-                        $st = db()->prepare('UPDATE users SET fullname=?, gender=?, username=?, password_hash=? WHERE id=? AND role="teacher"');
-                        $st->execute([$fullname, $gender, $username, password_hash($pass, PASSWORD_DEFAULT), $id]);
+                        $st = db()->prepare('UPDATE users SET fullname=?, lastname=?, firstname=?, mi=?, gender=?, username=?, password_hash=? WHERE id=? AND role="teacher"');
+                        $st->execute([$fullname, $last, $first, $mi, $gender, $username, password_hash($pass, PASSWORD_DEFAULT), $id]);
                     } else {
-                        $st = db()->prepare('UPDATE users SET fullname=?, gender=?, username=? WHERE id=? AND role="teacher"');
-                        $st->execute([$fullname, $gender, $username, $id]);
+                        $st = db()->prepare('UPDATE users SET fullname=?, lastname=?, firstname=?, mi=?, gender=?, username=? WHERE id=? AND role="teacher"');
+                        $st->execute([$fullname, $last, $first, $mi, $gender, $username, $id]);
                     }
                     set_flash('Teacher updated.');
                 } else {
                     if (strlen($pass) < 6) set_flash('New teacher needs a password (min 6 chars).');
                     else {
-                        $st = db()->prepare("INSERT INTO users (fullname, gender, username, password_hash, role) VALUES (?, ?, ?, ?, 'teacher')");
-                        $st->execute([$fullname, $gender, $username, password_hash($pass, PASSWORD_DEFAULT)]);
+                        $st = db()->prepare("INSERT INTO users (fullname, lastname, firstname, mi, gender, username, password_hash, role) VALUES (?, ?, ?, ?, ?, ?, ?, 'teacher')");
+                        $st->execute([$fullname, $last, $first, $mi, $gender, $username, password_hash($pass, PASSWORD_DEFAULT)]);
                         set_flash('Teacher added.');
                     }
                 }
@@ -70,7 +75,9 @@ include __DIR__ . '/includes/header.php';
     <input type="hidden" name="action" value="save">
     <input type="hidden" name="id" value="<?= (int)($edit['id'] ?? 0) ?>">
     <div class="grid two">
-      <div><label>Fullname</label><input type="text" name="fullname" required value="<?= e($edit['fullname'] ?? '') ?>"></div>
+      <div><label>Last name</label><input type="text" name="lastname" required value="<?= e($edit['lastname'] ?? '') ?>"></div>
+      <div><label>First name</label><input type="text" name="firstname" required value="<?= e($edit['firstname'] ?? '') ?>"></div>
+      <div><label>Middle initial (optional)</label><input type="text" name="mi" maxlength="3" value="<?= e($edit['mi'] ?? '') ?>"></div>
       <div><label>Gender</label><select name="gender">
         <?php foreach (['Male','Female','Other'] as $g): ?><option <?= (($edit['gender'] ?? 'Other') === $g) ? 'selected' : '' ?>><?= $g ?></option><?php endforeach; ?>
       </select></div>
