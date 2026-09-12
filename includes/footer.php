@@ -1,7 +1,7 @@
 </main>
 <footer class="footer">
   <div class="wrap">
-    <small><?= e(APP_NAME) ?> &middot; works on desktop &amp; mobile &middot; data stored in MySQL, safe across deployments</small>
+    <small><b>DOÑA JUANA CHIOCO NATIONAL HIGH SCHOOL</b><br>Computer-based Assessment - JDS</small>
   </div>
 </footer>
 </body>
