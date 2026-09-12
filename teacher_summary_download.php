@@ -12,9 +12,10 @@ $st->execute([$exam_id, $user['id']]);
 $exam = $st->fetch();
 if (!$exam) { http_response_code(404); exit('Exam not found.'); }
 
-$st = db()->prepare("SELECT a.*, u.fullname, s.name AS section_name
+$st = db()->prepare("SELECT a.*, u.fullname, u.gender, s.name AS section_name
     FROM attempts a JOIN users u ON u.id=a.student_id LEFT JOIN sections s ON s.id=u.section_id
-    WHERE a.exam_id=? AND a.submitted_at IS NOT NULL ORDER BY a.percentage DESC, u.fullname");
+    WHERE a.exam_id=? AND a.submitted_at IS NOT NULL
+    ORDER BY CASE u.gender WHEN 'Male' THEN 0 WHEN 'Female' THEN 1 ELSE 2 END, u.lastname, u.firstname, u.fullname");
 $st->execute([$exam_id]);
 $rows = $st->fetchAll();
 
@@ -39,15 +40,26 @@ if ($rows) {
     $pdf->addLine('Highest: ' . $hi . '% (' . implode(', ', $topNames) . ')');
     $pdf->addLine('Lowest: ' . $lo . '% (' . implode(', ', $lowNames) . ')');
     $pdf->blank();
-    $trows = [];
-    $i = 1;
+    $groups = ['Male' => [], 'Female' => [], 'Other' => []];
     foreach ($rows as $r) {
-        $trows[] = [$i++, $r['fullname'], ($r['section_name'] ?? '-'),
-            $r['score'] . '/' . $r['total'], $r['percentage'] . '%',
-            date('m-d-Y H:i:s', strtotime($r['submitted_at']))];
+        $g = $r['gender'] ?? 'Other';
+        if (!isset($groups[$g])) $groups[$g] = [];
+        $groups[$g][] = $r;
     }
-    $pdf->table(['#', 'Student', 'Section', 'Score', '%', 'Submitted'],
-        [28, 168, 80, 62, 45, 112], $trows, 9);
+    $i = 1;
+    foreach (['Male' => 'MALE', 'Female' => 'FEMALE', 'Other' => 'OTHERS'] as $g => $label) {
+        if (empty($groups[$g])) continue;
+        $pdf->addLine($label, 11, true, 2);
+        $trows = [];
+        foreach ($groups[$g] as $r) {
+            $trows[] = [$i++, $r['fullname'], ($r['section_name'] ?? '-'),
+                $r['score'] . '/' . $r['total'], $r['percentage'] . '%',
+                date('m-d-Y H:i:s', strtotime($r['submitted_at']))];
+        }
+        $pdf->table(['#', 'Student', 'Section', 'Score', '%', 'Submitted'],
+            [28, 168, 80, 62, 45, 112], $trows, 9);
+        $pdf->blank();
+    }
 } else {
     $pdf->addLine('No submissions yet.');
 }
