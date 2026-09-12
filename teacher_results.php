@@ -13,7 +13,7 @@ if ($sel && !$mine) { http_response_code(403); exit('Forbidden'); }
 
 $rows = []; $summary = null;
 if ($sel) {
-    $st = db()->prepare("SELECT a.*, u.fullname, u.username, s.name AS section_name
+    $st = db()->prepare("SELECT a.*, u.fullname, u.username, u.gender, u.lastname, u.firstname, s.name AS section_name
         FROM attempts a JOIN users u ON u.id=a.student_id LEFT JOIN sections s ON s.id=u.section_id
         WHERE a.exam_id=? AND a.submitted_at IS NOT NULL ORDER BY a.percentage DESC");
     $st->execute([$sel]); $rows = $st->fetchAll();
@@ -26,6 +26,21 @@ if ($sel) {
     }
 }
 $title = 'Exam Results';
+$mpl = null;
+if ($rows) {
+    $total = (float)$rows[0]['total'];
+    $cut = round($total * 0.6, 2);
+    $grp = function ($list) use ($cut, $total) {
+        $reach = 0; $sum = 0;
+        foreach ($list as $r) { $sum += (float)$r['score']; if ((float)$r['score'] >= $cut) $reach++; }
+        $n = count($list);
+        return ['n' => $n, 'reach' => $reach, 'mps' => ($n > 0 && $total > 0) ? round($sum / $n / $total * 100, 2) : null];
+    };
+    $male = array_values(array_filter($rows, function ($r) { return ($r['gender'] ?? '') === 'Male'; }));
+    $female = array_values(array_filter($rows, function ($r) { return ($r['gender'] ?? '') === 'Female'; }));
+    $mpl = ['cut' => $cut, 'total' => $rows[0]['total'],
+        'all' => $grp($rows), 'male' => $grp($male), 'female' => $grp($female)];
+}
 $topn = isset($_GET['topn']) ? max(1, min(20, (int)$_GET['topn'])) : 5;
 $analysis = [];
 if ($sel && $rows) {
@@ -87,6 +102,14 @@ foreach ($exams as $x) { if ((int)$x['id'] === $sel) { $selTitle = $x['title']; 
   <div class="card stat"><div class="n" style="color:var(--ok)">🏆 <?= $summary['highest'] ?>%</div><div class="l">Highest — <?= e($summary['top']) ?></div></div>
   <div class="card stat"><div class="n" style="color:var(--bad)"><?= $summary['lowest'] ?>%</div><div class="l">Lowest — <?= e($summary['low']) ?></div></div>
 </div>
+<?php if ($mpl !== null): ?>
+<div class="grid two">
+  <div class="card stat"><div class="n"><?= $mpl['cut'] ?> pts</div><div class="l">MPL — minimum proficiency level (60% of <?= e($mpl['total']) ?>)</div>
+    <div class="l">Male: <b><?= $mpl['male']['reach'] ?>/<?= $mpl['male']['n'] ?></b> · Female: <b><?= $mpl['female']['reach'] ?>/<?= $mpl['female']['n'] ?></b> · All: <b><?= $mpl['all']['reach'] ?>/<?= $mpl['all']['n'] ?></b></div></div>
+  <div class="card stat"><div class="n"><?= $mpl['all']['mps'] ?>%</div><div class="l">MPS — mean percentage score</div>
+    <div class="l">Male: <b><?= $mpl['male']['mps'] === null ? '—' : $mpl['male']['mps'] . '%' ?></b> · Female: <b><?= $mpl['female']['mps'] === null ? '—' : $mpl['female']['mps'] . '%' ?></b></div></div>
+</div>
+<?php endif; ?>
 <?php if ($analysis): ?>
 <div class="card no-print">
   <h3 style="margin-top:0">Question analysis

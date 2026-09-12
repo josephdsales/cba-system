@@ -39,6 +39,20 @@ if ($rows) {
     $pdf->addLine('Average: ' . round(array_sum($perc) / count($perc), 2) . '%');
     $pdf->addLine('Highest: ' . $hi . '% (' . implode(', ', $topNames) . ')');
     $pdf->addLine('Lowest: ' . $lo . '% (' . implode(', ', $lowNames) . ')');
+    $total = (float)$rows[0]['total'];
+    $cut = round($total * 0.6, 2);
+    $grp = function ($list) use ($cut, $total) {
+        $reach = 0; $sum = 0;
+        foreach ($list as $r) { $sum += (float)$r['score']; if ((float)$r['score'] >= $cut) $reach++; }
+        $n = count($list);
+        return ['n' => $n, 'reach' => $reach, 'mps' => ($n > 0 && $total > 0) ? round($sum / $n / $total * 100, 2) : null];
+    };
+    $male = array_values(array_filter($rows, function ($r) { return ($r['gender'] ?? '') === 'Male'; }));
+    $female = array_values(array_filter($rows, function ($r) { return ($r['gender'] ?? '') === 'Female'; }));
+    $gAll = $grp($rows); $gM = $grp($male); $gF = $grp($female);
+    $pdf->addLine('MPL (60% of ' . $total . '): at least ' . $cut . ' pts');
+    $pdf->addLine('   Male: ' . $gM['reach'] . '/' . $gM['n'] . ' reached | Female: ' . $gF['reach'] . '/' . $gF['n'] . ' reached | All: ' . $gAll['reach'] . '/' . $gAll['n'] . ' reached');
+    $pdf->addLine('MPS - Male: ' . ($gM['mps'] === null ? '-' : $gM['mps'] . '%') . ' | Female: ' . ($gF['mps'] === null ? '-' : $gF['mps'] . '%') . ' | All: ' . $gAll['mps'] . '%');
     $pdf->blank();
     $groups = ['Male' => [], 'Female' => [], 'Other' => []];
     foreach ($rows as $r) {
