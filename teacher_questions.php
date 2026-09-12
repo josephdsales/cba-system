@@ -85,8 +85,10 @@ include __DIR__ . '/includes/header.php';
         <div><label>Option D</label><input type="text" name="option_d" value="<?= e($edit['option_d'] ?? '') ?>"></div>
       </div>
     </div>
-    <label>Correct answer <small class="hint">(mcq: A/B/C/D · truefalse: True/False · identification: exact text)</small></label>
-    <input type="text" name="correct_answer" required value="<?= e($edit['correct_answer'] ?? '') ?>">
+    <div id="correct_row">
+    <label>Correct answer <small class="hint">(mcq: A/B/C/D · truefalse: True/False · identification: exact text · essays need none)</small></label>
+    <input type="text" name="correct_answer" id="correct_answer" value="<?= e($edit['correct_answer'] ?? '') ?>">
+    </div>
     <div class="btnrow"><button class="btn" type="submit"><?= $edit ? 'Save' : 'Add' ?></button>
     <?php if ($edit): ?><a class="btn ghost" href="teacher_questions.php?exam_id=<?= $exam_id ?>">Cancel</a><?php endif; ?></div>
   </form>
@@ -111,4 +113,17 @@ include __DIR__ . '/includes/header.php';
   </div>
 </div>
 <?php endforeach; ?>
+<script>
+(function () {
+  var t = document.getElementById('qtype'), row = document.getElementById('correct_row'),
+      inp = document.getElementById('correct_answer');
+  function sync() {
+    var essay = t.value === 'essay';
+    row.style.display = essay ? 'none' : '';
+    inp.required = !essay;
+    if (essay) inp.value = '';
+  }
+  t.addEventListener('change', sync); sync();
+})();
+</script>
 <?php include __DIR__ . '/includes/footer.php'; ?>
