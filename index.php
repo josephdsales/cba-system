@@ -40,6 +40,6 @@ include __DIR__ . '/includes/header.php';
     <div class="btnrow"><button class="btn" type="submit">Login</button>
     <a class="btn ghost" href="register.php">Student Registration</a></div>
   </form>
-//  <p class="hint">First time setup? <a href="install.php">Open install.php</a> to create the admin account.</p> //
+  <p class="hint">First time setup? <a href="install.php">Open install.php</a> to create the admin account.</p>
 </div>
 <?php include __DIR__ . '/includes/footer.php'; ?>
