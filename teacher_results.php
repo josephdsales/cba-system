@@ -12,10 +12,20 @@ if ($sel && !$mine) { http_response_code(403); exit('Forbidden'); }
 
 $rows = []; $summary = null;
 if ($sel) {
+    // Best attempt per student (highest percentage)
     $st = db()->prepare("SELECT a.*, u.fullname, u.username, u.gender, u.lastname, u.firstname, s.name AS section_name
-        FROM attempts a JOIN users u ON u.id=a.student_id LEFT JOIN sections s ON s.id=u.section_id
-        WHERE a.exam_id=? AND a.submitted_at IS NOT NULL ORDER BY a.percentage DESC");
-    $st->execute([$sel]); $rows = $st->fetchAll();
+        FROM attempts a
+        JOIN users u ON u.id=a.student_id
+        LEFT JOIN sections s ON s.id=u.section_id
+        JOIN (
+            SELECT student_id, MAX(percentage) AS max_pct
+            FROM attempts
+            WHERE exam_id=? AND submitted_at IS NOT NULL
+            GROUP BY student_id
+        ) best ON best.student_id=a.student_id AND best.max_pct=a.percentage
+        WHERE a.exam_id=? AND a.submitted_at IS NOT NULL
+        ORDER BY a.percentage DESC");
+    $st->execute([$sel, $sel]); $rows = $st->fetchAll();
     if ($rows) {
         $perc = array_column($rows, 'percentage');
         $summary = ['takers' => count($rows), 'average' => round(array_sum($perc) / count($perc), 2),
@@ -127,9 +137,15 @@ if ($sel && $rows) {
     $st = db()->prepare("SELECT q.id, q.question_text, COUNT(an.id) AS tries, COALESCE(SUM(an.is_correct),0) AS got
         FROM questions q LEFT JOIN answers an ON an.question_id=q.id
         LEFT JOIN attempts t ON t.id=an.attempt_id AND t.submitted_at IS NOT NULL
+        JOIN (
+            SELECT student_id, MAX(percentage) AS max_pct
+            FROM attempts
+            WHERE exam_id=? AND submitted_at IS NOT NULL
+            GROUP BY student_id
+        ) best ON best.student_id=t.student_id AND best.max_pct=t.percentage
         WHERE q.exam_id=? AND (an.id IS NULL OR t.id IS NOT NULL)
         GROUP BY q.id, q.question_text");
-    $st->execute([$sel]);
+    $st->execute([$sel, $sel]);
     foreach ($st->fetchAll() as $r) {
         $tries = (int)$r['tries'];
         if ($tries > 0) $analysis[] = ['text' => $r['question_text'], 'pct' => round($r['got'] / $tries * 100, 1), 'got' => $r['got'], 'tries' => $tries];

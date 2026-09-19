@@ -13,10 +13,18 @@ $exam = $st->fetch();
 if (!$exam) { http_response_code(404); exit('Exam not found.'); }
 
 $st = db()->prepare("SELECT a.*, u.fullname, u.gender, s.name AS section_name
-    FROM attempts a JOIN users u ON u.id=a.student_id LEFT JOIN sections s ON s.id=u.section_id
+    FROM attempts a
+    JOIN users u ON u.id=a.student_id
+    LEFT JOIN sections s ON s.id=u.section_id
+    JOIN (
+        SELECT student_id, MAX(percentage) AS max_pct
+        FROM attempts
+        WHERE exam_id=? AND submitted_at IS NOT NULL
+        GROUP BY student_id
+    ) best ON best.student_id=a.student_id AND best.max_pct=a.percentage
     WHERE a.exam_id=? AND a.submitted_at IS NOT NULL
     ORDER BY CASE u.gender WHEN 'Male' THEN 0 WHEN 'Female' THEN 1 ELSE 2 END, u.lastname, u.firstname, u.fullname");
-$st->execute([$exam_id]);
+$st->execute([$exam_id, $exam_id]);
 $rows = $st->fetchAll();
 
 $pdf = new MiniPDF();
