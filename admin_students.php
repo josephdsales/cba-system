@@ -45,12 +45,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $q = trim($_GET['q'] ?? '');
+$sort = $_GET['sort'] ?? 'name';
+if (!in_array($sort, ['name', 'gender', 'section', 'username', 'created'], true)) $sort = 'name';
+$sdir = ($_GET['dir'] ?? 'asc') === 'asc' ? 'asc' : 'desc';
+
+$order_map = [
+    'name' => '(u.lastname IS NULL), u.lastname, u.firstname, u.fullname',
+    'gender' => 'u.gender',
+    'section' => 's.name',
+    'username' => 'u.username',
+    'created' => 'u.created_at'
+];
+$order_sql = $order_map[$sort] . ' ' . strtoupper($sdir);
+
 if ($q !== '') {
     $st = db()->prepare("SELECT u.*, s.name AS section_name FROM users u LEFT JOIN sections s ON s.id=u.section_id
-                         WHERE u.role='student' AND (u.fullname LIKE ? OR u.username LIKE ?) ORDER BY (u.lastname IS NULL), u.lastname, u.firstname, u.fullname");
+                         WHERE u.role='student' AND (u.fullname LIKE ? OR u.username LIKE ?) ORDER BY $order_sql");
     $st->execute(["%$q%", "%$q%"]);
 } else {
-    $st = db()->query("SELECT u.*, s.name AS section_name FROM users u LEFT JOIN sections s ON s.id=u.section_id WHERE u.role='student' ORDER BY (u.lastname IS NULL), u.lastname, u.firstname, u.fullname");
+    $st = db()->query("SELECT u.*, s.name AS section_name FROM users u LEFT JOIN sections s ON s.id=u.section_id WHERE u.role='student' ORDER BY $order_sql");
 }
 $students = $st->fetchAll();
 $sections = db()->query('SELECT * FROM sections ORDER BY name')->fetchAll();
@@ -61,6 +74,14 @@ if (isset($_GET['edit'])) {
 }
 $title = 'Manage Students';
 include __DIR__ . '/includes/header.php';
+
+function sort_link($label, $key) {
+    global $q, $sort, $sdir;
+    $nd = ($sort === $key && $sdir === 'desc') ? 'asc' : 'desc';
+    $arrow = $sort === $key ? ($sdir === 'desc' ? ' ▼' : ' ▲') : '';
+    $qs = $q !== '' ? '&q=' . urlencode($q) : '';
+    return '<a href="admin_students.php?sort=' . $key . '&dir=' . $nd . $qs . '">' . e($label) . $arrow . '</a>';
+}
 ?>
 <?php if ($edit): ?>
 <div class="card">
@@ -100,7 +121,13 @@ include __DIR__ . '/includes/header.php';
   <p class="hint">Total: <?= count($students) ?> student(s). Admin can reset any student password or delete accounts.</p>
 </div>
 <div class="card"><div class="table-wrap"><table>
-  <tr><th>Fullname</th><th>Gender</th><th>Section</th><th>Username</th><th>Actions</th></tr>
+  <tr>
+    <th><?= sort_link('Fullname', 'name') ?></th>
+    <th><?= sort_link('Gender', 'gender') ?></th>
+    <th><?= sort_link('Section', 'section') ?></th>
+    <th><?= sort_link('Username', 'username') ?></th>
+    <th>Actions</th>
+  </tr>
   <?php foreach ($students as $s): ?>
   <tr>
     <td><?= e($s['fullname']) ?></td><td><?= e($s['gender']) ?></td>
