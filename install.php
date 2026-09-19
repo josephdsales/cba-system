@@ -45,6 +45,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             try { db()->exec('ALTER TABLE exams ADD COLUMN allow_retake SMALLINT NOT NULL DEFAULT 0'); } catch (Throwable $e) { /* exists */ }
             // v5c upgrade: shuffle_seed column on attempts for per-student question ordering.
             try { db()->exec('ALTER TABLE attempts ADD COLUMN shuffle_seed INT'); } catch (Throwable $e) { /* exists */ }
+            // v5d upgrade: remove unique constraint on attempts (exam_id, student_id) to allow multiple attempts (retakes).
+            if (db_driver() === 'pgsql') {
+                try { db()->exec('ALTER TABLE attempts DROP CONSTRAINT IF EXISTS attempts_exam_id_student_id_key'); } catch (Throwable $e) { /* doesn't exist */ }
+            } else {
+                try { db()->exec('ALTER TABLE attempts DROP INDEX uq_attempt'); } catch (Throwable $e) { /* doesn't exist */ }
+            }
             if (db_driver() === 'pgsql') {
                 try { db()->exec('ALTER TABLE questions DROP CONSTRAINT IF EXISTS questions_qtype_check'); } catch (Throwable $e) {}
                 try { db()->exec("ALTER TABLE questions ADD CONSTRAINT questions_qtype_check CHECK (qtype IN ('mcq','truefalse','identification','essay'))"); } catch (Throwable $e) {}
