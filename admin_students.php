@@ -62,7 +62,7 @@ $where = "u.role='student'";
 $params = [];
 if ($q !== '') {
     // Gender: exact match (case-insensitive), others: partial match
-    $where .= " AND (u.fullname LIKE ? OR u.username LIKE ? OR s.name LIKE ? OR (u.gender = ?))";
+    $where .= " AND (u.fullname LIKE ? OR u.username LIKE ? OR s.name LIKE ? OR LOWER(u.gender) = LOWER(?))";
     $params = ["%$q%", "%$q%", "%$q%", $q];
 }
 
