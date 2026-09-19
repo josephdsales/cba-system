@@ -4,36 +4,60 @@ require __DIR__ . '/includes/auth.php';
 $user = require_role('student');
 
 $exam_id = (int)($_GET['exam_id'] ?? $_POST['exam_id'] ?? 0);
-$st = db()->prepare("SELECT * FROM exams WHERE id=? AND status='published' AND (section_id IS NULL OR section_id=?)");
-$st->execute([$exam_id, $user['section_id']]);
+$st = db()->prepare("SELECT * FROM exams WHERE id=? AND status='published' AND (section_id IS NULL OR section_id=? OR EXISTS (SELECT 1 FROM exam_students es WHERE es.exam_id=e.id AND es.student_id=?))");
+$st->execute([$exam_id, $user['section_id'], $user['id']]);
 $exam = $st->fetch();
 if (!$exam) { set_flash('Exam not available.'); header('Location: student_exams.php'); exit; }
-
-// block retake
-$st = db()->prepare('SELECT * FROM attempts WHERE exam_id=? AND student_id=? AND submitted_at IS NOT NULL');
-$st->execute([$exam_id, $user['id']]);
-if ($st->fetch()) { set_flash('You already submitted this exam.'); header('Location: student_scores.php'); exit; }
 
 $st = db()->prepare('SELECT * FROM questions WHERE exam_id=? ORDER BY sort_order, id');
 $st->execute([$exam_id]); $questions = $st->fetchAll();
 if (!$questions) { set_flash('This exam has no questions yet.'); header('Location: student_exams.php'); exit; }
 
-// ensure attempt row (tracks start time for timer)
 $st = db()->prepare('SELECT * FROM attempts WHERE exam_id=? AND student_id=?');
 $st->execute([$exam_id, $user['id']]);
 $attempt = $st->fetch();
-if (!$attempt) {
-    $total = array_sum(array_column($questions, 'points'));
-    $st = db()->prepare('INSERT INTO attempts (exam_id, student_id, total) VALUES (?, ?, ?)');
-    $st->execute([$exam_id, $user['id'], $total]);
-    $attempt_id = (int)db()->lastInsertId();
-    $started = time();
-} else {
+
+$allow_retake = !empty($exam['allow_retake']);
+    $shuffle = !empty($exam['shuffle_questions']);
+    // Debug
+    error_log("student_take: exam_id=$exam_id, allow_retake=" . ($exam['allow_retake'] ?? 'NULL') . ", allow_retake bool=$allow_retake");
+
+if ($attempt && $attempt['submitted_at'] !== null) {
+    if (!$allow_retake) {
+        set_flash('You already submitted this exam.'); header('Location: student_scores.php'); exit;
+    }
+    // retake allowed: clear old answers, reset attempt
+    db()->prepare('DELETE FROM answers WHERE attempt_id=?')->execute([$attempt['id']]);
     $attempt_id = (int)$attempt['id'];
-    $started = strtotime($attempt['started_at']);
+    $started = time();
+    db()->prepare('UPDATE attempts SET started_at=NOW(), submitted_at=NULL, score=0, percentage=0, needs_grading=0, shuffle_seed=? WHERE id=?')
+        ->execute([$shuffle ? mt_rand(1, 2147483647) : null, $attempt_id]);
+} else {
+    if (!$attempt) {
+        $total = array_sum(array_column($questions, 'points'));
+        $seed = $shuffle ? mt_rand(1, 2147483647) : null;
+        $st = db()->prepare('INSERT INTO attempts (exam_id, student_id, total, shuffle_seed) VALUES (?, ?, ?, ?)');
+        $st->execute([$exam_id, $user['id'], $total, $seed]);
+        $attempt_id = (int)db()->lastInsertId();
+        $started = time();
+    } else {
+        $attempt_id = (int)$attempt['id'];
+        $started = strtotime($attempt['started_at']);
+        if ($shuffle && empty($attempt['shuffle_seed'])) {
+            $seed = mt_rand(1, 2147483647);
+            db()->prepare('UPDATE attempts SET shuffle_seed=? WHERE id=?')->execute([$seed, $attempt_id]);
+        }
+    }
 }
+
 $elapsed = time() - $started;
 $remain = max(1, $exam['time_limit_minutes'] * 60 - $elapsed);
+
+if ($shuffle) {
+    $seed = $attempt['shuffle_seed'] ?? mt_rand(1, 2147483647);
+    mt_srand($seed);
+    shuffle($questions);
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     check_csrf();
@@ -66,7 +90,7 @@ include __DIR__ . '/includes/header.php';
 <div class="card">
   <p class="hint"><?= e($exam['description'] ?? '') ?></p>
   <span class="timer" id="exam-timer" data-seconds="<?= $remain ?>">⏳ --:--</span>
-  <p class="hint">One submission only. Timer auto-submits when time runs out.</p>
+  <p class="hint">One submission only. Timer auto-submits when time runs out.<?= $shuffle ? ' Questions are shuffled.' : '' ?><?= $allow_retake ? ' Retake allowed.' : '' ?></p>
 </div>
 <form method="post" id="exam-form">
   <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
