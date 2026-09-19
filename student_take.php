@@ -19,19 +19,18 @@ $attempt = $st->fetch();
 
 $allow_retake = !empty($exam['allow_retake']);
     $shuffle = !empty($exam['shuffle_questions']);
-    // Debug
-    error_log("student_take: exam_id=$exam_id, allow_retake=" . ($exam['allow_retake'] ?? 'NULL') . ", allow_retake bool=$allow_retake");
 
 if ($attempt && $attempt['submitted_at'] !== null) {
     if (!$allow_retake) {
         set_flash('You already submitted this exam.'); header('Location: student_scores.php'); exit;
     }
-    // retake allowed: clear old answers, reset attempt
-    db()->prepare('DELETE FROM answers WHERE attempt_id=?')->execute([$attempt['id']]);
-    $attempt_id = (int)$attempt['id'];
+    // retake allowed: create NEW attempt, keep old one intact
+    $total = array_sum(array_column($questions, 'points'));
+    $seed = $shuffle ? mt_rand(1, 2147483647) : null;
+    $st = db()->prepare('INSERT INTO attempts (exam_id, student_id, total, shuffle_seed) VALUES (?, ?, ?, ?)');
+    $st->execute([$exam_id, $user['id'], $total, $seed]);
+    $attempt_id = (int)db()->lastInsertId();
     $started = time();
-    db()->prepare('UPDATE attempts SET started_at=NOW(), submitted_at=NULL, score=0, percentage=0, needs_grading=0, shuffle_seed=? WHERE id=?')
-        ->execute([$shuffle ? mt_rand(1, 2147483647) : null, $attempt_id]);
 } else {
     if (!$attempt) {
         $total = array_sum(array_column($questions, 'points'));
@@ -54,7 +53,10 @@ $elapsed = time() - $started;
 $remain = max(1, $exam['time_limit_minutes'] * 60 - $elapsed);
 
 if ($shuffle) {
-    $seed = $attempt['shuffle_seed'] ?? mt_rand(1, 2147483647);
+    // Use the current attempt's shuffle_seed (new attempt for retakes)
+    $current_attempt = db()->prepare('SELECT shuffle_seed FROM attempts WHERE id=?');
+    $current_attempt->execute([$attempt_id]);
+    $seed = $current_attempt->fetchColumn() ?? mt_rand(1, 2147483647);
     mt_srand($seed);
     shuffle($questions);
 }
@@ -68,11 +70,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     foreach ($questions as $q) {
         $ans = trim($_POST['q_' . $q['id']] ?? '');
         $correct = false;
-        if ($q['qtype'] === 'essay') { $needs_grading = 1; }
-        if ($q['qtype'] === 'mcq') $correct = (strtoupper(substr($ans, 0, 1)) === strtoupper($q['correct_answer']));
-        elseif ($q['qtype'] === 'truefalse') $correct = (strtolower($ans) === strtolower($q['correct_answer']));
-        else $correct = (strtolower($ans) === strtolower(trim($q['correct_answer'])));
-        $earned = $correct ? $q['points'] : 0;
+        if ($q['qtype'] === 'essay') {
+            $needs_grading = 1;
+            $earned = 0; // Essays get 0 until teacher grades
+        } elseif ($q['qtype'] === 'mcq') {
+            $correct = (strtoupper(substr($ans, 0, 1)) === strtoupper($q['correct_answer']));
+            $earned = $correct ? $q['points'] : 0;
+        } elseif ($q['qtype'] === 'truefalse') {
+            $correct = (strtolower($ans) === strtolower($q['correct_answer']));
+            $earned = $correct ? $q['points'] : 0;
+        } else { // identification
+            $correct = (strtolower($ans) === strtolower(trim($q['correct_answer'])));
+            $earned = $correct ? $q['points'] : 0;
+        }
         $score += $earned;
         $ins->execute([$attempt_id, $q['id'], $ans !== '' ? $ans : null, $correct ? 1 : 0, $earned]);
     }
