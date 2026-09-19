@@ -35,6 +35,22 @@ if ($sel) {
     }
 }
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'delete_attempt') {
+    check_csrf();
+    $attempt_id = (int)($_POST['attempt_id'] ?? 0);
+    $st = db()->prepare("SELECT a.* FROM attempts a JOIN exams e ON e.id=a.exam_id WHERE a.id=? AND e.teacher_id=?");
+    $st->execute([$attempt_id, $user['id']]);
+    $attempt = $st->fetch();
+    if ($attempt) {
+        db()->prepare('DELETE FROM answers WHERE attempt_id=?')->execute([$attempt_id]);
+        db()->prepare('DELETE FROM attempts WHERE id=?')->execute([$attempt_id]);
+        set_flash('Attempt deleted. Student can retake.');
+    } else {
+        set_flash('Attempt not found.');
+    }
+    header('Location: teacher_results.php?exam_id=' . $sel); exit;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'remedial') {
     check_csrf();
     $mode = $_POST['remedial_mode'] ?? '';
@@ -234,7 +250,15 @@ foreach ($exams as $x) { if ((int)$x['id'] === $sel) { $selTitle = $x['title']; 
   <?php $i = 1; foreach ($rows as $r): ?>
   <tr><td><?= $i++ ?></td><td><?= e($r['fullname']) ?></td><td><?= e($r['section_name'] ?? '—') ?></td>
   <td><?= e($r['score']) ?>/<?= e($r['total']) ?></td><td><b><?= e($r['percentage']) ?>%</b></td><td><?= e(date('m-d-Y H:i:s', strtotime($r['submitted_at']))) ?></td>
-  <td><a class="btn small ghost" href="teacher_review.php?attempt_id=<?= $r['id'] ?>">Review</a></td></tr>
+  <td><div class="btnrow" style="margin:0;gap:4px">
+    <a class="btn small ghost" href="teacher_review.php?attempt_id=<?= $r['id'] ?>">Review</a>
+    <form method="post" style="display:inline" onsubmit="return confirm('Delete this attempt? Student can retake.')">
+      <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
+      <input type="hidden" name="action" value="delete_attempt">
+      <input type="hidden" name="attempt_id" value="<?= $r['id'] ?>">
+      <button class="btn small danger" type="submit">Delete</button>
+    </form>
+  </div></td></tr>
   <?php endforeach; ?>
 </table></div></div>
 <?php endif; ?>
