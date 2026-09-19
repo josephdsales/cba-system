@@ -75,6 +75,16 @@ if (isset($_GET['edit'])) {
     $st = db()->prepare("SELECT * FROM users WHERE id=? AND role='student'");
     $st->execute([(int)$_GET['edit']]); $edit = $st->fetch();
 }
+
+// AJAX handler for live search
+if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest') {
+    ob_start();
+    include __DIR__ . '/includes/partial_students_table.php';
+    $html = ob_get_clean();
+    echo json_encode(['table' => $html, 'count' => count($students)]);
+    exit;
+}
+
 $title = 'Manage Students';
 include __DIR__ . '/includes/header.php';
 
@@ -117,42 +127,43 @@ function sort_link($label, $key) {
 </div>
 <?php endif; ?>
 <div class="card">
-  <form method="get" style="display:flex;gap:8px;flex-wrap:wrap">
-    <input type="text" name="q" placeholder="Search name or username..." value="<?= e($q) ?>" style="flex:1;min-width:200px">
+  <form method="get" id="search-form" style="display:flex;gap:8px;flex-wrap:wrap">
+    <input type="text" name="q" id="search-input" placeholder="Search name, username, section, gender..." value="<?= e($q) ?>" style="flex:1;min-width:200px" autocomplete="off">
     <button class="btn" type="submit">Search</button>
   </form>
-  <p class="hint">Total: <?= count($students) ?> student(s). Admin can reset any student password or delete accounts.</p>
+  <p class="hint">Total: <span id="student-count"><?= count($students) ?></span> student(s). Admin can reset any student password or delete accounts.</p>
 </div>
-<div class="card"><div class="table-wrap"><table>
-  <tr>
-    <th><?= sort_link('Fullname', 'name') ?></th>
-    <th><?= sort_link('Gender', 'gender') ?></th>
-    <th><?= sort_link('Section', 'section') ?></th>
-    <th><?= sort_link('Username', 'username') ?></th>
-    <th>Actions</th>
-  </tr>
-  <?php foreach ($students as $s): ?>
-  <tr>
-    <td><?= e($s['fullname']) ?></td><td><?= e($s['gender']) ?></td>
-    <td><?= e($s['section_name'] ?? '—') ?></td><td><?= e($s['username']) ?></td>
-    <td>
-      <div class="btnrow" style="margin:0">
-        <a class="btn small ghost" href="admin_students.php?edit=<?= $s['id'] ?>">Edit</a>
-        <form method="post" style="display:inline" onsubmit="return confirm('Reset password for <?= e($s['username']) ?>?')">
-          <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
-          <input type="hidden" name="action" value="reset"><input type="hidden" name="id" value="<?= $s['id'] ?>">
-          <input type="text" name="new_password" placeholder="new pass" required style="width:110px;display:inline-block" minlength="6">
-          <button class="btn small ok" type="submit">Reset PW</button>
-        </form>
-        <form method="post" style="display:inline" onsubmit="return confirm('Delete this student and all their attempts?')">
-          <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
-          <input type="hidden" name="action" value="delete"><input type="hidden" name="id" value="<?= $s['id'] ?>">
-          <button class="btn small danger" type="submit">Delete</button>
-        </form>
-      </div>
-    </td>
-  </tr>
-  <?php endforeach; ?>
-  <?php if (!$students): ?><tr><td colspan="5" class="hint">No students found.</td></tr><?php endif; ?>
+<div class="card"><div class="table-wrap"><table id="students-table">
+  <?php include __DIR__ . '/includes/partial_students_table.php'; ?>
 </table></div></div>
+<script>
+(function () {
+  var input = document.getElementById('search-input');
+  var table = document.getElementById('students-table');
+  var countEl = document.getElementById('student-count');
+  var debounceTimer;
+
+  function doSearch(q) {
+    var params = new URLSearchParams(window.location.search);
+    params.set('q', q);
+    params.set('page', '1');
+    var url = 'admin_students.php?' + params.toString();
+    fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (data.table) table.outerHTML = data.table;
+        if (data.count !== undefined) countEl.textContent = data.count;
+      });
+  }
+
+  if (input) {
+    input.addEventListener('input', function () {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(function () {
+        doSearch(input.value);
+      }, 300);
+    });
+  }
+})();
+</script>
 <?php include __DIR__ . '/includes/footer.php'; ?>
