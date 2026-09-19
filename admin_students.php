@@ -58,13 +58,16 @@ $order_map = [
 ];
 $order_sql = $order_map[$sort] . ' ' . strtoupper($sdir);
 
+$where = "u.role='student'";
+$params = [];
 if ($q !== '') {
-    $st = db()->prepare("SELECT u.*, s.name AS section_name FROM users u LEFT JOIN sections s ON s.id=u.section_id
-                         WHERE u.role='student' AND (u.fullname LIKE ? OR u.username LIKE ?) ORDER BY $order_sql");
-    $st->execute(["%$q%", "%$q%"]);
-} else {
-    $st = db()->query("SELECT u.*, s.name AS section_name FROM users u LEFT JOIN sections s ON s.id=u.section_id WHERE u.role='student' ORDER BY $order_sql");
+    $where .= " AND (u.fullname LIKE ? OR u.username LIKE ? OR s.name LIKE ? OR u.gender LIKE ?)";
+    $params = ["%$q%", "%$q%", "%$q%", "%$q%"];
 }
+
+$st = db()->prepare("SELECT u.*, s.name AS section_name FROM users u LEFT JOIN sections s ON s.id=u.section_id
+                     WHERE $where ORDER BY $order_sql");
+$st->execute($params);
 $students = $st->fetchAll();
 $sections = db()->query('SELECT * FROM sections ORDER BY name')->fetchAll();
 $edit = null;
