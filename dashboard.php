@@ -41,7 +41,7 @@ if ($user['role'] === 'admin') {
 } else {
     $st = db()->prepare("SELECT COUNT(*) c FROM exams WHERE status='published' AND (section_id IS NULL OR section_id=?)");
     $st->execute([$user['section_id']]); $open = $st->fetch()['c'];
-    $st = db()->prepare('SELECT COUNT(*) c FROM attempts WHERE student_id=?');
+    $st = db()->prepare('SELECT COUNT(*) c FROM attempts WHERE student_id=? AND submitted_at IS NOT NULL');
     $st->execute([$user['id']]); $taken = $st->fetch()['c'];
     ?>
     <div class="card">
