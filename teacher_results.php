@@ -10,9 +10,18 @@ $sel = isset($_GET['exam_id']) ? (int)$_GET['exam_id'] : (int)($exams[0]['id'] ?
 $mine = array_filter($exams, fn($x) => (int)$x['id'] === $sel);
 if ($sel && !$mine) { http_response_code(403); exit('Forbidden'); }
 
-$rows = []; $summary = null;
+$rows = []; $best_rows = []; $summary = null;
 if ($sel) {
-    // Best attempt per student (highest percentage)
+    // ALL attempts for table display (teacher sees original + retake)
+    $st = db()->prepare("SELECT a.*, u.fullname, u.username, u.gender, u.lastname, u.firstname, s.name AS section_name
+        FROM attempts a
+        JOIN users u ON u.id=a.student_id
+        LEFT JOIN sections s ON s.id=u.section_id
+        WHERE a.exam_id=? AND a.submitted_at IS NOT NULL
+        ORDER BY a.submitted_at DESC");
+    $st->execute([$sel]); $rows = $st->fetchAll();
+
+    // Best attempt per student for summary/analysis (highest percentage)
     $st = db()->prepare("SELECT a.*, u.fullname, u.username, u.gender, u.lastname, u.firstname, s.name AS section_name
         FROM attempts a
         JOIN users u ON u.id=a.student_id
@@ -25,13 +34,13 @@ if ($sel) {
         ) best ON best.student_id=a.student_id AND best.max_pct=a.percentage
         WHERE a.exam_id=? AND a.submitted_at IS NOT NULL
         ORDER BY a.percentage DESC");
-    $st->execute([$sel, $sel]); $rows = $st->fetchAll();
-    if ($rows) {
-        $perc = array_column($rows, 'percentage');
-        $summary = ['takers' => count($rows), 'average' => round(array_sum($perc) / count($perc), 2),
+    $st->execute([$sel, $sel]); $best_rows = $st->fetchAll();
+    if ($best_rows) {
+        $perc = array_column($best_rows, 'percentage');
+        $summary = ['takers' => count($best_rows), 'average' => round(array_sum($perc) / count($perc), 2),
             'highest' => max($perc), 'lowest' => min($perc),
-            'top' => implode(', ', array_column(array_filter($rows, function ($r) use ($perc) { return (float)$r['percentage'] == (float)max($perc); }), 'fullname')),
-            'low' => implode(', ', array_column(array_filter($rows, function ($r) use ($perc) { return (float)$r['percentage'] == (float)min($perc); }), 'fullname'))];
+            'top' => implode(', ', array_column(array_filter($best_rows, function ($r) use ($perc) { return (float)$r['percentage'] == (float)max($perc); }), 'fullname')),
+            'low' => implode(', ', array_column(array_filter($best_rows, function ($r) use ($perc) { return (float)$r['percentage'] == (float)min($perc); }), 'fullname'))];
     }
 }
 
@@ -131,11 +140,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 }
 
 $failed_students = [];
-if ($sel && $rows) {
+if ($sel && $best_rows) {
     $passing = null;
     foreach ($exams as $x) { if ((int)$x['id'] === $sel) { $passing = (float)$x['passing_percent']; break; } }
     if ($passing !== null) {
-        $failed_students = array_filter($rows, fn($r) => (float)$r['percentage'] < $passing);
+        $failed_students = array_filter($best_rows, fn($r) => (float)$r['percentage'] < $passing);
     }
 }
 
@@ -143,8 +152,8 @@ $other_exams = array_filter($exams, fn($x) => (int)$x['id'] !== $sel);
 
 $title = 'Exam Results';
 $mpl = null;
-if ($rows) {
-    $total = (float)$rows[0]['total'];
+if ($best_rows) {
+    $total = (float)$best_rows[0]['total'];
     $cut = round($total * 0.6, 2);
     $grp = function ($list) use ($cut, $total) {
         $reach = 0; $sum = 0;
@@ -152,14 +161,14 @@ if ($rows) {
         $n = count($list);
         return ['n' => $n, 'reach' => $reach, 'mps' => ($n > 0 && $total > 0) ? round($sum / $n / $total * 100, 2) : null];
     };
-    $male = array_values(array_filter($rows, function ($r) { return ($r['gender'] ?? '') === 'Male'; }));
-    $female = array_values(array_filter($rows, function ($r) { return ($r['gender'] ?? '') === 'Female'; }));
-    $mpl = ['cut' => $cut, 'total' => $rows[0]['total'],
-        'all' => $grp($rows), 'male' => $grp($male), 'female' => $grp($female)];
+    $male = array_values(array_filter($best_rows, function ($r) { return ($r['gender'] ?? '') === 'Male'; }));
+    $female = array_values(array_filter($best_rows, function ($r) { return ($r['gender'] ?? '') === 'Female'; }));
+    $mpl = ['cut' => $cut, 'total' => $best_rows[0]['total'],
+        'all' => $grp($best_rows), 'male' => $grp($male), 'female' => $grp($female)];
 }
 $topn = isset($_GET['topn']) ? max(1, min(20, (int)$_GET['topn'])) : 5;
 $analysis = [];
-if ($sel && $rows) {
+if ($sel && $best_rows) {
     $st = db()->prepare("SELECT q.id, q.question_text, COUNT(an.id) AS tries, COALESCE(SUM(an.is_correct),0) AS got
         FROM questions q LEFT JOIN answers an ON an.question_id=q.id
         LEFT JOIN attempts t ON t.id=an.attempt_id AND t.submitted_at IS NOT NULL
@@ -214,7 +223,7 @@ foreach ($exams as $x) { if ((int)$x['id'] === $sel) { $selTitle = $x['title']; 
       <?php foreach ($exams as $x): ?><option value="<?= $x['id'] ?>" <?= $sel === (int)$x['id'] ? 'selected' : '' ?>><?= e($x['title']) ?></option><?php endforeach; ?>
     </select>
     <button class="btn" type="submit">View</button>
-    <?php if ($rows): ?><a class="btn ghost" href="teacher_summary_download.php?exam_id=<?= $sel ?>">⬇ Download Summary (PDF)</a><?php endif; ?>
+    <?php if ($best_rows): ?><a class="btn ghost" href="teacher_summary_download.php?exam_id=<?= $sel ?>">⬇ Download Summary (PDF)</a><?php endif; ?>
     <?php if ($failed_students): ?>
     <button type="button" class="btn ok" onclick="openRemedialModal()">🩺 Remedial</button>
     <?php endif; ?>
