@@ -20,7 +20,12 @@ include __DIR__ . '/includes/header.php';
   <tr>
     <td><b><?= e($x['title']) ?></b><br><small class="hint"><?= e(mb_strimwidth($x['description'] ?? '', 0, 90, '…')) ?></small></td>
     <td><?= e($x['teacher_name']) ?></td><td><?= $x['qcount'] ?></td><td><?= $x['time_limit_minutes'] ?> min</td>
-    <td><?php if ($x['done_id']): ?><span class="badge b-published">Taken ✓</span>
+    <td><?php if ($x['done_id']): ?>
+      <?php if (!empty($x['allow_retake'])): ?>
+        <a class="btn small ok" href="student_take.php?exam_id=<?= $x['id'] ?>">Retake</a>
+      <?php else: ?>
+        <span class="badge b-published">Taken ✓</span>
+      <?php endif; ?>
       <?php else: ?><a class="btn small" href="student_take.php?exam_id=<?= $x['id'] ?>">Take now</a><?php endif; ?></td>
   </tr>
   <?php endforeach; ?>
