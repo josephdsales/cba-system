@@ -1,12 +1,6 @@
 <?php
 // Partial template for students table (used by AJAX)
-function sort_link($label, $key) {
-    global $q, $sort, $sdir;
-    $nd = ($sort === $key && $sdir === 'desc') ? 'asc' : 'desc';
-    $arrow = $sort === $key ? ($sdir === 'desc' ? ' ▼' : ' ▲') : '';
-    $qs = $q !== '' ? '&q=' . urlencode($q) : '';
-    return '<a href="admin_students.php?sort=' . $key . '&dir=' . $nd . $qs . '">' . e($label) . $arrow . '</a>';
-}
+// sort_link() is defined in admin_students.php
 ?>
 <tr>
   <th><?= sort_link('Fullname', 'name') ?></th>
