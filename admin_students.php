@@ -61,8 +61,9 @@ $order_sql = $order_map[$sort] . ' ' . strtoupper($sdir);
 $where = "u.role='student'";
 $params = [];
 if ($q !== '') {
-    $where .= " AND (u.fullname LIKE ? OR u.username LIKE ? OR s.name LIKE ? OR u.gender LIKE ?)";
-    $params = ["%$q%", "%$q%", "%$q%", "%$q%"];
+    // Gender: exact match (case-insensitive), others: partial match
+    $where .= " AND (u.fullname LIKE ? OR u.username LIKE ? OR s.name LIKE ? OR (u.gender = ?))";
+    $params = ["%$q%", "%$q%", "%$q%", $q];
 }
 
 $st = db()->prepare("SELECT u.*, s.name AS section_name FROM users u LEFT JOIN sections s ON s.id=u.section_id
