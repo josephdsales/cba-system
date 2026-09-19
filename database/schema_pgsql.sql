@@ -39,7 +39,16 @@ CREATE TABLE IF NOT EXISTS exams (
   passing_percent NUMERIC(5,2) NOT NULL DEFAULT 50.00,
   status VARCHAR(10) NOT NULL DEFAULT 'draft'
     CHECK (status IN ('draft','published','closed')),
+  shuffle_questions SMALLINT NOT NULL DEFAULT 0,
+  allow_retake SMALLINT NOT NULL DEFAULT 0,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS exam_students (
+  exam_id INT NOT NULL REFERENCES exams(id) ON DELETE CASCADE,
+  student_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (exam_id, student_id)
 );
 
 CREATE TABLE IF NOT EXISTS questions (
@@ -67,7 +76,7 @@ CREATE TABLE IF NOT EXISTS attempts (
   started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   submitted_at TIMESTAMP NULL,
   needs_grading SMALLINT NOT NULL DEFAULT 0,
-  UNIQUE (exam_id, student_id)
+  shuffle_seed INT
 );
 
 CREATE TABLE IF NOT EXISTS answers (

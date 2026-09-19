@@ -45,11 +45,23 @@ CREATE TABLE IF NOT EXISTS exams (
   time_limit_minutes INT NOT NULL DEFAULT 60,
   passing_percent DECIMAL(5,2) NOT NULL DEFAULT 50.00,
   status ENUM('draft','published','closed') NOT NULL DEFAULT 'draft',
+  shuffle_questions TINYINT(1) NOT NULL DEFAULT 0,
+  allow_retake TINYINT(1) NOT NULL DEFAULT 0,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_exams_teacher FOREIGN KEY (teacher_id)
     REFERENCES users(id) ON DELETE CASCADE,
   CONSTRAINT fk_exams_section FOREIGN KEY (section_id)
     REFERENCES sections(id) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+-- Per-student exam assignment (for remedial, make-up, accommodations)
+CREATE TABLE IF NOT EXISTS exam_students (
+  exam_id INT NOT NULL,
+  student_id INT NOT NULL,
+  assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (exam_id, student_id),
+  CONSTRAINT fk_exam_students_exam FOREIGN KEY (exam_id) REFERENCES exams(id) ON DELETE CASCADE,
+  CONSTRAINT fk_exam_students_student FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 -- Questions belonging to an exam
@@ -80,7 +92,7 @@ CREATE TABLE IF NOT EXISTS attempts (
   started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   submitted_at TIMESTAMP NULL,
   needs_grading SMALLINT NOT NULL DEFAULT 0 COMMENT '1 = has essay answers awaiting manual grading',
-  UNIQUE KEY uq_attempt (exam_id, student_id),
+  shuffle_seed INT,
   CONSTRAINT fk_attempts_exam FOREIGN KEY (exam_id)
     REFERENCES exams(id) ON DELETE CASCADE,
   CONSTRAINT fk_attempts_student FOREIGN KEY (student_id)
