@@ -22,15 +22,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $limit = max(1, (int)($_POST['time_limit_minutes'] ?? 60));
         $pass = min(100, max(0, (float)($_POST['passing_percent'] ?? 50)));
         $status = in_array($_POST['status'] ?? '', ['draft','published','closed'], true) ? $_POST['status'] : 'draft';
+        $shuffle = !empty($_POST['shuffle_questions']) ? 1 : 0;
+        $retake = !empty($_POST['allow_retake']) ? 1 : 0;
         if ($title === '') set_flash('Exam title is required.');
         else {
             if ($id > 0) {
-                $st = db()->prepare('UPDATE exams SET title=?, description=?, section_id=?, time_limit_minutes=?, passing_percent=?, status=? WHERE id=? AND teacher_id=?');
-                $st->execute([$title, $desc ?: null, $sec ?: null, $limit, $pass, $status, $id, $user['id']]);
+                $st = db()->prepare('UPDATE exams SET title=?, description=?, section_id=?, time_limit_minutes=?, passing_percent=?, status=?, shuffle_questions=?, allow_retake=? WHERE id=? AND teacher_id=?');
+                $st->execute([$title, $desc ?: null, $sec ?: null, $limit, $pass, $status, $shuffle, $retake, $id, $user['id']]);
                 set_flash('Exam updated.');
             } else {
-                $st = db()->prepare('INSERT INTO exams (title, description, teacher_id, section_id, time_limit_minutes, passing_percent, status) VALUES (?, ?, ?, ?, ?, ?, ?)');
-                $st->execute([$title, $desc ?: null, $user['id'], $sec ?: null, $limit, $pass, $status]);
+                $st = db()->prepare('INSERT INTO exams (title, description, teacher_id, section_id, time_limit_minutes, passing_percent, status, shuffle_questions, allow_retake) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
+                $st->execute([$title, $desc ?: null, $user['id'], $sec ?: null, $limit, $pass, $status, $shuffle, $retake]);
                 $id = (int)db()->lastInsertId();
                 set_flash('Exam created. Now add questions.');
                 header("Location: teacher_questions.php?exam_id=$id"); exit;
@@ -75,6 +77,8 @@ include __DIR__ . '/includes/header.php';
           <option value="<?= $k ?>" <?= (($edit['status'] ?? 'draft') === $k) ? 'selected' : '' ?>><?= $v ?></option>
         <?php endforeach; ?>
       </select></div>
+      <div><label><input type="checkbox" name="shuffle_questions" value="1" <?= !empty($edit['shuffle_questions']) ? 'checked' : '' ?>> Shuffle question order</label></div>
+      <div><label><input type="checkbox" name="allow_retake" value="1" <?= !empty($edit['allow_retake']) ? 'checked' : '' ?>> Allow retake</label></div>
     </div>
     <div class="btnrow"><button class="btn" type="submit">Save exam</button><a class="btn ghost" href="teacher_exams.php">Cancel</a></div>
   </form>
