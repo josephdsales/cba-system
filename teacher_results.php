@@ -50,8 +50,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         if (!$target_exam) { set_flash('Target exam not found.'); }
         else {
             if ($shuffle || $allow_retake) {
-                db()->prepare('UPDATE exams SET shuffle_questions=?, allow_retake=? WHERE id=?')
+                db()->prepare('UPDATE exams SET shuffle_questions=?, allow_retake=?, status="published" WHERE id=?')
                     ->execute([$shuffle ? 1 : 0, $allow_retake ? 1 : 0, $target_exam_id]);
+            } else {
+                db()->prepare('UPDATE exams SET status="published" WHERE id=?')
+                    ->execute([$target_exam_id]);
             }
             $assign_students($target_exam_id, $student_ids);
             set_flash('Assigned ' . count($student_ids) . ' student(s) to "' . $target_exam['title'] . '".' . ($shuffle ? ' Shuffle enabled.' : '') . ($allow_retake ? ' Retake allowed.' : ''));
