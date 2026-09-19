@@ -213,10 +213,10 @@ foreach ($exams as $x) { if ((int)$x['id'] === $sel) { $selTitle = $x['title']; 
 <?php endif; ?>
 <div id="remedial-modal" class="modal" style="display:none">
   <div class="modal-backdrop" onclick="closeRemedialModal()"></div>
-  <div class="modal-content card" style="max-width:700px;width:90%;max-height:90vh;overflow:auto">
+  <div class="modal-content card" style="max-width:700px;width:90%;max-height:90vh;overflow:auto" onclick="event.stopPropagation()">
     <h3 style="margin-top:0">🩺 Create Remedial</h3>
     <p class="hint">Exam: <b><?= e($selTitle) ?></b> · <b><?= count($failed_students) ?></b> student(s) below passing</p>
-    <form method="post" id="remedial-form">
+    <form method="post" id="remedial-form" action="teacher_results.php?exam_id=<?= $sel ?>">
       <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
       <input type="hidden" name="action" value="remedial">
       <input type="hidden" name="remedial_mode" id="remedial_mode" value="existing">
