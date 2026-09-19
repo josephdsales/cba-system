@@ -21,6 +21,16 @@ function can_edit_section(array $s, array $me): bool {
     return true;
 }
 
+function can_delete_section(array $s, array $me): bool {
+    // Only admin can delete sections
+    return $me['role'] === 'admin';
+}
+
+function can_unassign_section(array $s, array $me): bool {
+    // Teacher can unassign only sections assigned to them
+    return $me['role'] === 'teacher' && (int)($s['assigned_teacher_id'] ?? 0) === (int)$me['id'];
+}
+
 $edit = null;
 if (isset($_GET['edit'])) {
     $st = db()->prepare('SELECT s.*, t.fullname AS teacher_name FROM sections s LEFT JOIN users t ON t.id=s.assigned_teacher_id WHERE s.id=?');
@@ -59,6 +69,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     set_flash($is_admin_page ? 'Section added.' : 'Section added (visible only to you).');
                 }
             } catch (PDOException $ex) { set_flash('Error: section name already exists.'); }
+        }
+        header("Location: $back"); exit;
+    }
+    if (($_POST['action'] ?? '') === 'unassign') {
+        $id = (int)$_POST['id'];
+        $st = db()->prepare('SELECT * FROM sections WHERE id=?');
+        $st->execute([$id]); $cur = $st->fetch();
+        if (!$cur || !can_unassign_section($cur, $me)) {
+            set_flash('Not allowed to unassign this section.');
+        } else {
+            $st = db()->prepare('UPDATE sections SET assigned_teacher_id=NULL WHERE id=?');
+            $st->execute([$id]);
+            set_flash('Section unassigned — now shared with all teachers.');
         }
         header("Location: $back"); exit;
     }
@@ -121,11 +144,19 @@ $this_page = $is_admin_page ? 'admin_sections.php' : 'teacher_sections.php';
     <td><?= $s['student_count'] ?></td>
     <td><?php if (can_edit_section($s, $me)): ?><div class="btnrow" style="margin:0">
       <a class="btn small ghost" href="<?= $this_page ?>?edit=<?= $s['id'] ?>">Edit</a>
-      <form method="post" style="display:inline" onsubmit="return confirm('Delete section <?= e($s['name']) ?>?')">
-        <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
-        <input type="hidden" name="action" value="delete"><input type="hidden" name="id" value="<?= $s['id'] ?>">
-        <button class="btn small danger" type="submit">Delete</button>
-      </form>
+      <?php if ($is_admin_page): ?>
+        <form method="post" style="display:inline" onsubmit="return confirm('Delete section <?= e($s['name']) ?>?')">
+          <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
+          <input type="hidden" name="action" value="delete"><input type="hidden" name="id" value="<?= $s['id'] ?>">
+          <button class="btn small danger" type="submit">Delete</button>
+        </form>
+      <?php elseif (can_unassign_section($s, $me)): ?>
+        <form method="post" style="display:inline" onsubmit="return confirm('Unassign section <?= e($s['name']) ?>? It will become shared.')">
+          <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
+          <input type="hidden" name="action" value="unassign"><input type="hidden" name="id" value="<?= $s['id'] ?>">
+          <button class="btn small ghost" type="submit">Unassign</button>
+        </form>
+      <?php endif; ?>
     </div><?php else: ?><small class="hint">read-only</small><?php endif; ?></td>
   </tr>
   <?php endforeach; ?>
