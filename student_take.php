@@ -4,7 +4,7 @@ require __DIR__ . '/includes/auth.php';
 $user = require_role('student');
 
 $exam_id = (int)($_GET['exam_id'] ?? $_POST['exam_id'] ?? 0);
-$st = db()->prepare("SELECT * FROM exams WHERE id=? AND status='published' AND (section_id IS NULL OR section_id=? OR EXISTS (SELECT 1 FROM exam_students es WHERE es.exam_id=e.id AND es.student_id=?))");
+$st = db()->prepare("SELECT * FROM exams WHERE id=? AND status='published' AND (section_id IS NULL OR section_id=? OR EXISTS (SELECT 1 FROM exam_students es WHERE es.exam_id=exams.id AND es.student_id=?))");
 $st->execute([$exam_id, $user['section_id'], $user['id']]);
 $exam = $st->fetch();
 if (!$exam) { set_flash('Exam not available.'); header('Location: student_exams.php'); exit; }
