@@ -33,6 +33,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     $shuffle = !empty($_POST['shuffle_questions']);
     $allow_retake = !empty($_POST['allow_retake']);
 
+    // Helper: insert ignore for MySQL / ON CONFLICT DO NOTHING for PostgreSQL
+    $assign_students = function ($exam_id, $student_ids) {
+        if (db_driver() === 'pgsql') {
+            $st = db()->prepare('INSERT INTO exam_students (exam_id, student_id) VALUES (?, ?) ON CONFLICT DO NOTHING');
+        } else {
+            $st = db()->prepare('INSERT IGNORE INTO exam_students (exam_id, student_id) VALUES (?, ?)');
+        }
+        foreach ($student_ids as $sid) { $st->execute([$exam_id, $sid]); }
+    };
+
     if ($mode === 'existing' && $target_exam_id && $student_ids) {
         $st = db()->prepare('SELECT * FROM exams WHERE id=? AND teacher_id=?');
         $st->execute([$target_exam_id, $user['id']]);
@@ -43,8 +53,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 db()->prepare('UPDATE exams SET shuffle_questions=?, allow_retake=? WHERE id=?')
                     ->execute([$shuffle ? 1 : 0, $allow_retake ? 1 : 0, $target_exam_id]);
             }
-            $ins = db()->prepare('INSERT IGNORE INTO exam_students (exam_id, student_id) VALUES (?, ?)');
-            foreach ($student_ids as $sid) { $ins->execute([$target_exam_id, $sid]); }
+            $assign_students($target_exam_id, $student_ids);
             set_flash('Assigned ' . count($student_ids) . ' student(s) to "' . $target_exam['title'] . '".' . ($shuffle ? ' Shuffle enabled.' : '') . ($allow_retake ? ' Retake allowed.' : ''));
         }
     } elseif ($mode === 'new' && $student_ids) {
@@ -67,8 +76,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     $ins->execute([$new_exam_id, $q['question_text'], $q['qtype'], $q['option_a'], $q['option_b'], $q['option_c'], $q['option_d'], $q['correct_answer'], $q['points'], $q['sort_order']]);
                 }
 
-                $ins2 = db()->prepare('INSERT IGNORE INTO exam_students (exam_id, student_id) VALUES (?, ?)');
-                foreach ($student_ids as $sid) { $ins2->execute([$new_exam_id, $sid]); }
+                $assign_students($new_exam_id, $student_ids);
 
                 db()->commit();
                 set_flash('Created remedial exam "' . $title . '" with ' . count($src_questions) . ' questions, assigned to ' . count($student_ids) . ' student(s).' . ($shuffle ? ' Shuffle enabled.' : '') . ($allow_retake ? ' Retake allowed.' : ''));
