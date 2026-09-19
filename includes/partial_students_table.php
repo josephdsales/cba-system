@@ -1,14 +1,6 @@
 <?php
-// Partial template for students table (used by AJAX)
-// sort_link() is defined in admin_students.php
+// Partial template for students table body (used by AJAX)
 ?>
-<tr>
-  <th><?= sort_link('Fullname', 'name') ?></th>
-  <th><?= sort_link('Gender', 'gender') ?></th>
-  <th><?= sort_link('Section', 'section') ?></th>
-  <th><?= sort_link('Username', 'username') ?></th>
-  <th>Actions</th>
-</tr>
 <?php foreach ($students as $s): ?>
 <tr>
   <td><?= e($s['fullname']) ?></td><td><?= e($s['gender']) ?></td>
