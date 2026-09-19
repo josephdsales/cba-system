@@ -7,7 +7,6 @@ $st = db()->prepare('SELECT * FROM exams WHERE teacher_id=? ORDER BY created_at 
 $st->execute([$user['id']]);
 $exams = $st->fetchAll();
 $sel = isset($_GET['exam_id']) ? (int)$_GET['exam_id'] : (int)($exams[0]['id'] ?? 0);
-// security: selected exam must belong to this teacher
 $mine = array_filter($exams, fn($x) => (int)$x['id'] === $sel);
 if ($sel && !$mine) { http_response_code(403); exit('Forbidden'); }
 
@@ -25,6 +24,76 @@ if ($sel) {
             'low' => implode(', ', array_column(array_filter($rows, function ($r) use ($perc) { return (float)$r['percentage'] == (float)min($perc); }), 'fullname'))];
     }
 }
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'remedial') {
+    check_csrf();
+    $mode = $_POST['remedial_mode'] ?? '';
+    $target_exam_id = (int)($_POST['target_exam_id'] ?? 0);
+    $student_ids = array_map('intval', $_POST['student_ids'] ?? []);
+    $shuffle = !empty($_POST['shuffle_questions']);
+    $allow_retake = !empty($_POST['allow_retake']);
+
+    if ($mode === 'existing' && $target_exam_id && $student_ids) {
+        $st = db()->prepare('SELECT * FROM exams WHERE id=? AND teacher_id=?');
+        $st->execute([$target_exam_id, $user['id']]);
+        $target_exam = $st->fetch();
+        if (!$target_exam) { set_flash('Target exam not found.'); }
+        else {
+            if ($shuffle || $allow_retake) {
+                db()->prepare('UPDATE exams SET shuffle_questions=?, allow_retake=? WHERE id=?')
+                    ->execute([$shuffle ? 1 : 0, $allow_retake ? 1 : 0, $target_exam_id]);
+            }
+            $ins = db()->prepare('INSERT IGNORE INTO exam_students (exam_id, student_id) VALUES (?, ?)');
+            foreach ($student_ids as $sid) { $ins->execute([$target_exam_id, $sid]); }
+            set_flash('Assigned ' . count($student_ids) . ' student(s) to "' . $target_exam['title'] . '".' . ($shuffle ? ' Shuffle enabled.' : '') . ($allow_retake ? ' Retake allowed.' : ''));
+        }
+    } elseif ($mode === 'new' && $student_ids) {
+        $title = trim($_POST['new_title'] ?? '');
+        $desc = trim($_POST['new_description'] ?? '');
+        $time_limit = max(1, (int)($_POST['new_time_limit'] ?? 60));
+        $passing = min(100, max(0, (float)($_POST['new_passing'] ?? 50)));
+        if ($title === '') { set_flash('New exam title is required.'); }
+        else {
+            db()->beginTransaction();
+            try {
+                $st = db()->prepare('INSERT INTO exams (title, description, teacher_id, section_id, time_limit_minutes, passing_percent, status, shuffle_questions, allow_retake) VALUES (?, ?, ?, NULL, ?, ?, "published", ?, ?)');
+                $st->execute([$title, $desc ?: null, $user['id'], $time_limit, $passing, $shuffle ? 1 : 0, $allow_retake ? 1 : 0]);
+                $new_exam_id = (int)db()->lastInsertId();
+
+                $st = db()->prepare('SELECT * FROM questions WHERE exam_id=? ORDER BY sort_order, id');
+                $st->execute([$sel]); $src_questions = $st->fetchAll();
+                $ins = db()->prepare('INSERT INTO questions (exam_id, question_text, qtype, option_a, option_b, option_c, option_d, correct_answer, points, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+                foreach ($src_questions as $q) {
+                    $ins->execute([$new_exam_id, $q['question_text'], $q['qtype'], $q['option_a'], $q['option_b'], $q['option_c'], $q['option_d'], $q['correct_answer'], $q['points'], $q['sort_order']]);
+                }
+
+                $ins2 = db()->prepare('INSERT IGNORE INTO exam_students (exam_id, student_id) VALUES (?, ?)');
+                foreach ($student_ids as $sid) { $ins2->execute([$new_exam_id, $sid]); }
+
+                db()->commit();
+                set_flash('Created remedial exam "' . $title . '" with ' . count($src_questions) . ' questions, assigned to ' . count($student_ids) . ' student(s).' . ($shuffle ? ' Shuffle enabled.' : '') . ($allow_retake ? ' Retake allowed.' : ''));
+            } catch (Throwable $ex) {
+                db()->rollBack();
+                set_flash('Failed to create remedial exam: ' . $ex->getMessage());
+            }
+        }
+    } else {
+        set_flash('Invalid remedial request.');
+    }
+    header('Location: teacher_results.php?exam_id=' . $sel); exit;
+}
+
+$failed_students = [];
+if ($sel && $rows) {
+    $passing = null;
+    foreach ($exams as $x) { if ((int)$x['id'] === $sel) { $passing = (float)$x['passing_percent']; break; } }
+    if ($passing !== null) {
+        $failed_students = array_filter($rows, fn($r) => (float)$r['percentage'] < $passing);
+    }
+}
+
+$other_exams = array_filter($exams, fn($x) => (int)$x['id'] !== $sel);
+
 $title = 'Exam Results';
 $mpl = null;
 if ($rows) {
@@ -93,6 +162,9 @@ foreach ($exams as $x) { if ((int)$x['id'] === $sel) { $selTitle = $x['title']; 
     </select>
     <button class="btn" type="submit">View</button>
     <?php if ($rows): ?><a class="btn ghost" href="teacher_summary_download.php?exam_id=<?= $sel ?>">⬇ Download Summary (PDF)</a><?php endif; ?>
+    <?php if ($failed_students): ?>
+    <button type="button" class="btn ok" onclick="openRemedialModal()">🩺 Remedial</button>
+    <?php endif; ?>
   </form>
 </div>
 <?php if ($sel && $summary): ?>
@@ -138,4 +210,83 @@ foreach ($exams as $x) { if ((int)$x['id'] === $sel) { $selTitle = $x['title']; 
 </table></div></div>
 <?php elseif ($sel): ?><div class="card"><p class="hint">No submissions yet.</p></div>
 <?php else: ?><div class="card"><p class="hint">No exams yet.</p></div><?php endif; ?>
+
+<?php if ($failed_students): ?>
+<div id="remedial-modal" class="modal" style="display:none">
+  <div class="modal-backdrop" onclick="closeRemedialModal()"></div>
+  <div class="modal-content card" style="max-width:700px;width:90%;max-height:90vh;overflow:auto">
+    <h3 style="margin-top:0">🩺 Create Remedial</h3>
+    <p class="hint">Exam: <b><?= e($selTitle) ?></b> · <b><?= count($failed_students) ?></b> student(s) below passing</p>
+    <form method="post" id="remedial-form">
+      <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
+      <input type="hidden" name="action" value="remedial">
+      <div class="tabs" style="display:flex;gap:4px;margin-bottom:12px;border-bottom:1px solid var(--line)">
+        <button type="button" class="tab-btn active" data-tab="existing">Use Existing Exam</button>
+        <button type="button" class="tab-btn" data-tab="new">Create New Exam</button>
+      </div>
+      <div id="tab-existing" class="tab-panel">
+        <label>Select Exam</label>
+        <select name="target_exam_id" required>
+          <?php foreach ($other_exams as $x): ?><option value="<?= $x['id'] ?>"><?= e($x['title']) ?></option><?php endforeach; ?>
+        </select>
+        <div class="grid two" style="margin-top:12px">
+          <div><label><input type="checkbox" name="shuffle_questions" value="1"> Shuffle questions</label></div>
+          <div><label><input type="checkbox" name="allow_retake" value="1"> Allow retake</label></div>
+        </div>
+      </div>
+      <div id="tab-new" class="tab-panel" style="display:none">
+        <label>New Exam Title</label>
+        <input type="text" name="new_title" required placeholder="e.g. <?= e($selTitle) ?> - Remedial">
+        <label>Description (optional)</label>
+        <textarea name="new_description" rows="2"></textarea>
+        <div class="grid two">
+          <div><label>Time Limit (min)</label><input type="number" name="new_time_limit" min="1" value="60"></div>
+          <div><label>Passing %</label><input type="number" name="new_passing" min="0" max="100" step="0.01" value="50"></div>
+        </div>
+        <div class="grid two" style="margin-top:12px">
+          <div><label><input type="checkbox" name="shuffle_questions" value="1"> Shuffle questions</label></div>
+          <div><label><input type="checkbox" name="allow_retake" value="1"> Allow retake</label></div>
+        </div>
+        <p class="hint">Copies all questions from current exam.</p>
+      </div>
+      <label>Assign to Students</label>
+      <div style="max-height:200px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:8px">
+        <?php foreach ($failed_students as $fs): ?>
+        <label style="display:flex;align-items:center;gap:8px;padding:4px 0">
+          <input type="checkbox" name="student_ids[]" value="<?= $fs['id'] ?>" checked>
+          <span><?= e($fs['fullname']) ?> <small class="hint">(<?= e($fs['section_name'] ?? '—') ?> · <?= e($fs['percentage']) ?>%)</small></span>
+        </label>
+        <?php endforeach; ?>
+      </div>
+      <div class="btnrow">
+        <button class="btn ok" type="submit">Assign Remedial</button>
+        <button type="button" class="btn ghost" onclick="closeRemedialModal()">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+<script>
+(function () {
+  var modal = document.getElementById('remedial-modal');
+  var tabs = modal.querySelectorAll('.tab-btn');
+  var panels = modal.querySelectorAll('.tab-panel');
+  function showTab(name) {
+    tabs.forEach(function (b) { b.classList.toggle('active', b.dataset.tab === name); });
+    panels.forEach(function (p) { p.style.display = p.id === 'tab-' + name ? '' : 'none'; });
+  }
+  tabs.forEach(function (b) { b.addEventListener('click', function () { showTab(b.dataset.tab); }); });
+  window.openRemedialModal = function () { modal.style.display = 'block'; document.body.style.overflow = 'hidden'; };
+  window.closeRemedialModal = function () { modal.style.display = 'none'; document.body.style.overflow = ''; };
+})();
+</script>
+<style>
+.modal { position:fixed; top:0; left:0; right:0; bottom:0; z-index:100; display:flex; align-items:center; justify-content:center; padding:20px; }
+.modal-backdrop { position:absolute; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,.5); }
+.modal-content { position:relative; background:var(--card); border-radius:var(--radius); box-shadow:0 20px 40px rgba(0,0,0,.2); }
+.tabs { display:flex; gap:4px; border-bottom:1px solid var(--line); }
+.tab-btn { background:none; border:none; padding:8px 16px; cursor:pointer; font-weight:600; color:var(--muted); border-bottom:2px solid transparent; margin-bottom:-1px; }
+.tab-btn.active { color:var(--brand); border-bottom-color:var(--brand); }
+.tab-btn:hover { color:var(--ink); }
+.tab-panel { padding-top:12px; }
+</style>
 <?php include __DIR__ . '/includes/footer.php'; ?>
