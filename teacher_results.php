@@ -182,6 +182,7 @@ foreach ($exams as $x) { if ((int)$x['id'] === $sel) { $selTitle = $x['title']; 
     <div class="l">Male: <b><?= $mpl['male']['mps'] === null ? '—' : $mpl['male']['mps'] . '%' ?></b> · Female: <b><?= $mpl['female']['mps'] === null ? '—' : $mpl['female']['mps'] . '%' ?></b></div></div>
 </div>
 <?php endif; ?>
+<?php endif; ?>
 <?php if ($analysis): ?>
 <div class="card no-print">
   <h3 style="margin-top:0">Question analysis
