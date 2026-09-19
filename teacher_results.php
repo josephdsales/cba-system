@@ -293,7 +293,7 @@ foreach ($exams as $x) { if ((int)$x['id'] === $sel) { $selTitle = $x['title']; 
       <div style="max-height:200px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:8px">
         <?php foreach ($failed_students as $fs): ?>
         <label style="display:flex;align-items:center;gap:8px;padding:4px 0">
-          <input type="checkbox" name="student_ids[]" value="<?= $fs['id'] ?>" checked>
+          <input type="checkbox" name="student_ids[]" value="<?= $fs['student_id'] ?>" checked>
           <span><?= e($fs['fullname']) ?> <small class="hint">(<?= e($fs['section_name'] ?? '—') ?> · <?= e($fs['percentage']) ?>%)</small></span>
         </label>
         <?php endforeach; ?>
