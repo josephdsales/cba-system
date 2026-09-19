@@ -59,6 +59,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     $shuffle = !empty($_POST['shuffle_questions']);
     $allow_retake = !empty($_POST['allow_retake']);
 
+    // Filter student_ids to only include existing users (prevent FK violation)
+    if ($student_ids) {
+        $placeholders = implode(',', array_fill(0, count($student_ids), '?'));
+        $st = db()->prepare("SELECT id FROM users WHERE id IN ($placeholders)");
+        $st->execute($student_ids);
+        $valid_students = array_column($st->fetchAll(), 'id');
+    } else {
+        $valid_students = [];
+    }
+
     // Helper: insert ignore for MySQL / ON CONFLICT DO NOTHING for PostgreSQL
     $assign_students = function ($exam_id, $student_ids) {
         if (db_driver() === 'pgsql') {
@@ -69,7 +79,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         foreach ($student_ids as $sid) { $st->execute([$exam_id, $sid]); }
     };
 
-    if ($mode === 'existing' && $target_exam_id && $student_ids) {
+    if ($mode === 'existing' && $target_exam_id && $valid_students) {
         $st = db()->prepare('SELECT * FROM exams WHERE id=? AND teacher_id=?');
         $st->execute([$target_exam_id, $user['id']]);
         $target_exam = $st->fetch();
@@ -82,10 +92,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 db()->prepare("UPDATE exams SET status='published' WHERE id=?")
                     ->execute([$target_exam_id]);
             }
-            $assign_students($target_exam_id, $student_ids);
-            set_flash('Assigned ' . count($student_ids) . ' student(s) to "' . $target_exam['title'] . '".' . ($shuffle ? ' Shuffle enabled.' : '') . ($allow_retake ? ' Retake allowed.' : ''));
+            $assign_students($target_exam_id, $valid_students);
+            set_flash('Assigned ' . count($valid_students) . ' student(s) to "' . $target_exam['title'] . '".' . ($shuffle ? ' Shuffle enabled.' : '') . ($allow_retake ? ' Retake allowed.' : ''));
         }
-    } elseif ($mode === 'new' && $student_ids) {
+    } elseif ($mode === 'new' && $valid_students) {
         $title = trim($_POST['new_title'] ?? '');
         $desc = trim($_POST['new_description'] ?? '');
         $time_limit = max(1, (int)($_POST['new_time_limit'] ?? 60));
@@ -105,10 +115,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     $ins->execute([$new_exam_id, $q['question_text'], $q['qtype'], $q['option_a'], $q['option_b'], $q['option_c'], $q['option_d'], $q['correct_answer'], $q['points'], $q['sort_order']]);
                 }
 
-                $assign_students($new_exam_id, $student_ids);
+                $assign_students($new_exam_id, $valid_students);
 
                 db()->commit();
-                set_flash('Created remedial exam "' . $title . '" with ' . count($src_questions) . ' questions, assigned to ' . count($student_ids) . ' student(s).' . ($shuffle ? ' Shuffle enabled.' : '') . ($allow_retake ? ' Retake allowed.' : ''));
+                set_flash('Created remedial exam "' . $title . '" with ' . count($src_questions) . ' questions, assigned to ' . count($valid_students) . ' student(s).' . ($shuffle ? ' Shuffle enabled.' : '') . ($allow_retake ? ' Retake allowed.' : ''));
             } catch (Throwable $ex) {
                 db()->rollBack();
                 set_flash('Failed to create remedial exam: ' . $ex->getMessage());
