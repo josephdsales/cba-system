@@ -219,42 +219,14 @@ foreach ($exams as $x) { if ((int)$x['id'] === $sel) { $selTitle = $x['title']; 
     <form method="post" id="remedial-form" action="teacher_results.php?exam_id=<?= $sel ?>">
       <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
       <input type="hidden" name="action" value="remedial">
-      <input type="hidden" name="remedial_mode" id="remedial_mode" value="existing">
-      <div class="tabs" style="display:flex;gap:4px;margin-bottom:12px;border-bottom:1px solid var(--line)">
-        <button type="button" class="tab-btn active" data-tab="existing">Use Existing Exam</button>
-        <button type="button" class="tab-btn" data-tab="new">Create New Exam</button>
-      </div>
-      <div id="tab-existing" class="tab-panel">
-        <label>Select Exam</label>
-        <select name="target_exam_id" <?= empty($other_exams) ? 'disabled' : 'required' ?>>
-          <?php if (empty($other_exams)): ?>
-            <option value="">No other exams available — use "Create New Exam" tab</option>
-          <?php else: ?>
-            <?php foreach ($other_exams as $x): ?><option value="<?= $x['id'] ?>"><?= e($x['title']) ?></option><?php endforeach; ?>
-          <?php endif; ?>
-        </select>
-        <?php if (empty($other_exams)): ?>
-          <p class="hint">Create another exam first, or use the "Create New Exam" tab.</p>
-        <?php endif; ?>
-        <div class="grid two" style="margin-top:12px">
-          <div><label><input type="checkbox" name="shuffle_questions" value="1"> Shuffle questions</label></div>
-          <div><label><input type="checkbox" name="allow_retake" value="1"> Allow retake</label></div>
-        </div>
-      </div>
-      <div id="tab-new" class="tab-panel" style="display:none">
-        <label>New Exam Title</label>
-        <input type="text" name="new_title" required placeholder="e.g. <?= e($selTitle) ?> - Remedial">
-        <label>Description (optional)</label>
-        <textarea name="new_description" rows="2"></textarea>
-        <div class="grid two">
-          <div><label>Time Limit (min)</label><input type="number" name="new_time_limit" min="1" value="60"></div>
-          <div><label>Passing %</label><input type="number" name="new_passing" min="0" max="100" step="0.01" value="50"></div>
-        </div>
-        <div class="grid two" style="margin-top:12px">
-          <div><label><input type="checkbox" name="shuffle_questions" value="1"> Shuffle questions</label></div>
-          <div><label><input type="checkbox" name="allow_retake" value="1"> Allow retake</label></div>
-        </div>
-        <p class="hint">Copies all questions from current exam.</p>
+      <input type="hidden" name="remedial_mode" value="existing">
+      <label>Select Exam</label>
+      <select name="target_exam_id" required>
+        <?php foreach ($exams as $x): if ((int)$x['id'] === $sel): ?><option value="<?= $x['id'] ?>" selected><?= e($x['title']) ?></option><?php endif; endforeach; ?>
+      </select>
+      <div class="grid two" style="margin-top:12px">
+        <div><label><input type="checkbox" name="shuffle_questions" value="1"> Shuffle questions</label></div>
+        <div><label><input type="checkbox" name="allow_retake" value="1"> Allow retake</label></div>
       </div>
       <label>Assign to Students</label>
       <div style="max-height:200px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:8px">
@@ -275,15 +247,6 @@ foreach ($exams as $x) { if ((int)$x['id'] === $sel) { $selTitle = $x['title']; 
 <script>
 (function () {
   var modal = document.getElementById('remedial-modal');
-  var tabs = modal.querySelectorAll('.tab-btn');
-  var panels = modal.querySelectorAll('.tab-panel');
-  var modeInput = document.getElementById('remedial_mode');
-  function showTab(name) {
-    tabs.forEach(function (b) { b.classList.toggle('active', b.dataset.tab === name); });
-    panels.forEach(function (p) { p.style.display = p.id === 'tab-' + name ? '' : 'none'; });
-    if (modeInput) modeInput.value = name;
-  }
-  tabs.forEach(function (b) { b.addEventListener('click', function () { showTab(b.dataset.tab); }); });
   window.openRemedialModal = function () { modal.style.display = 'block'; document.body.style.overflow = 'hidden'; };
   window.closeRemedialModal = function () { modal.style.display = 'none'; document.body.style.overflow = ''; };
 })();
@@ -292,10 +255,5 @@ foreach ($exams as $x) { if ((int)$x['id'] === $sel) { $selTitle = $x['title']; 
 .modal { position:fixed; top:0; left:0; right:0; bottom:0; z-index:100; display:flex; align-items:center; justify-content:center; padding:20px; }
 .modal-backdrop { position:absolute; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,.5); }
 .modal-content { position:relative; background:var(--card); border-radius:var(--radius); box-shadow:0 20px 40px rgba(0,0,0,.2); }
-.tabs { display:flex; gap:4px; border-bottom:1px solid var(--line); }
-.tab-btn { background:none; border:none; padding:8px 16px; cursor:pointer; font-weight:600; color:var(--muted); border-bottom:2px solid transparent; margin-bottom:-1px; }
-.tab-btn.active { color:var(--brand); border-bottom-color:var(--brand); }
-.tab-btn:hover { color:var(--ink); }
-.tab-panel { padding-top:12px; }
 </style>
 <?php include __DIR__ . '/includes/footer.php'; ?>
