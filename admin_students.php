@@ -62,7 +62,9 @@ $where = "u.role='student'";
 $params = [];
 if ($q !== '') {
     // Search fullname, username, section, gender, and individual name parts
-    $where .= " AND (u.fullname LIKE ? OR u.username LIKE ? OR s.name LIKE ? OR LOWER(u.gender) = LOWER(?) OR u.lastname LIKE ? OR u.firstname LIKE ?)";
+    // Use ILIKE for PostgreSQL (case-insensitive), LIKE for MySQL
+    $likeOp = (db_driver() === 'pgsql') ? 'ILIKE' : 'LIKE';
+    $where .= " AND (u.fullname $likeOp ? OR u.username $likeOp ? OR s.name $likeOp ? OR LOWER(u.gender) = LOWER(?) OR COALESCE(u.lastname, '') $likeOp ? OR COALESCE(u.firstname, '') $likeOp ?)";
     $params = ["%$q%", "%$q%", "%$q%", $q, "%$q%", "%$q%"];
 }
 
