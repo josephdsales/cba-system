@@ -34,6 +34,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             try { db()->exec('ALTER TABLE users ADD COLUMN mi VARCHAR(10)'); } catch (Throwable $e) { /* exists */ }
             // v4 upgrade (idempotent): essay questions + manual grading.
             try { db()->exec('ALTER TABLE attempts ADD COLUMN needs_grading SMALLINT DEFAULT 0'); } catch (Throwable $e) { /* exists */ }
+            // v5 upgrade (idempotent): exam_students table for per-student assignment (remedial, make-up, accommodations).
+            if (db_driver() === 'pgsql') {
+                try { db()->exec('CREATE TABLE IF NOT EXISTS exam_students (exam_id INT NOT NULL REFERENCES exams(id) ON DELETE CASCADE, student_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE, assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (exam_id, student_id))'); } catch (Throwable $e) { /* exists */ }
+            } else {
+                try { db()->exec('CREATE TABLE IF NOT EXISTS exam_students (exam_id INT NOT NULL, student_id INT NOT NULL, assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (exam_id, student_id), CONSTRAINT fk_exam_students_exam FOREIGN KEY (exam_id) REFERENCES exams(id) ON DELETE CASCADE, CONSTRAINT fk_exam_students_student FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE) ENGINE=InnoDB'); } catch (Throwable $e) { /* exists */ }
+            }
+            // v5b upgrade: shuffle_questions and allow_retake columns on exams.
+            try { db()->exec('ALTER TABLE exams ADD COLUMN shuffle_questions SMALLINT NOT NULL DEFAULT 0'); } catch (Throwable $e) { /* exists */ }
+            try { db()->exec('ALTER TABLE exams ADD COLUMN allow_retake SMALLINT NOT NULL DEFAULT 0'); } catch (Throwable $e) { /* exists */ }
+            // v5c upgrade: shuffle_seed column on attempts for per-student question ordering.
+            try { db()->exec('ALTER TABLE attempts ADD COLUMN shuffle_seed INT'); } catch (Throwable $e) { /* exists */ }
             if (db_driver() === 'pgsql') {
                 try { db()->exec('ALTER TABLE questions DROP CONSTRAINT IF EXISTS questions_qtype_check'); } catch (Throwable $e) {}
                 try { db()->exec("ALTER TABLE questions ADD CONSTRAINT questions_qtype_check CHECK (qtype IN ('mcq','truefalse','identification','essay'))"); } catch (Throwable $e) {}
