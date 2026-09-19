@@ -208,10 +208,6 @@ foreach ($exams as $x) { if ((int)$x['id'] === $sel) { $selTitle = $x['title']; 
   <td><a class="btn small ghost" href="teacher_review.php?attempt_id=<?= $r['id'] ?>">Review</a></td></tr>
   <?php endforeach; ?>
 </table></div></div>
-<?php elseif ($sel): ?><div class="card"><p class="hint">No submissions yet.</p></div>
-<?php else: ?><div class="card"><p class="hint">No exams yet.</p></div><?php endif; ?>
-
-<?php if ($failed_students): ?>
 <div id="remedial-modal" class="modal" style="display:none">
   <div class="modal-backdrop" onclick="closeRemedialModal()"></div>
   <div class="modal-content card" style="max-width:700px;width:90%;max-height:90vh;overflow:auto">
