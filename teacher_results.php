@@ -208,6 +208,7 @@ foreach ($exams as $x) { if ((int)$x['id'] === $sel) { $selTitle = $x['title']; 
   <td><a class="btn small ghost" href="teacher_review.php?attempt_id=<?= $r['id'] ?>">Review</a></td></tr>
   <?php endforeach; ?>
 </table></div></div>
+<?php endif; ?>
 <div id="remedial-modal" class="modal" style="display:none">
   <div class="modal-backdrop" onclick="closeRemedialModal()"></div>
   <div class="modal-content card" style="max-width:700px;width:90%;max-height:90vh;overflow:auto">
