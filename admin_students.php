@@ -80,8 +80,8 @@ if (isset($_GET['edit'])) {
 if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest') {
     ob_start();
     include __DIR__ . '/includes/partial_students_table.php';
-    $html = ob_get_clean();
-    echo json_encode(['table' => $html, 'count' => count($students)]);
+    $tbody = ob_get_clean();
+    echo json_encode(['tbody' => $tbody, 'count' => count($students)]);
     exit;
 }
 
@@ -134,12 +134,45 @@ function sort_link($label, $key) {
   <p class="hint">Total: <span id="student-count"><?= count($students) ?></span> student(s). Admin can reset any student password or delete accounts.</p>
 </div>
 <div class="card"><div class="table-wrap"><table id="students-table">
-  <?php include __DIR__ . '/includes/partial_students_table.php'; ?>
+  <thead>
+    <tr>
+      <th><?= sort_link('Fullname', 'name') ?></th>
+      <th><?= sort_link('Gender', 'gender') ?></th>
+      <th><?= sort_link('Section', 'section') ?></th>
+      <th><?= sort_link('Username', 'username') ?></th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody id="students-tbody">
+    <?php foreach ($students as $s): ?>
+    <tr>
+      <td><?= e($s['fullname']) ?></td><td><?= e($s['gender']) ?></td>
+      <td><?= e($s['section_name'] ?? '—') ?></td><td><?= e($s['username']) ?></td>
+      <td>
+        <div class="btnrow" style="margin:0">
+          <a class="btn small ghost" href="admin_students.php?edit=<?= $s['id'] ?>">Edit</a>
+          <form method="post" style="display:inline" onsubmit="return confirm('Reset password for <?= e($s['username']) ?>?')">
+            <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
+            <input type="hidden" name="action" value="reset"><input type="hidden" name="id" value="<?= $s['id'] ?>">
+            <input type="text" name="new_password" placeholder="new pass" required style="width:110px;display:inline-block" minlength="6">
+            <button class="btn small ok" type="submit">Reset PW</button>
+          </form>
+          <form method="post" style="display:inline" onsubmit="return confirm('Delete this student and all their attempts?')">
+            <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
+            <input type="hidden" name="action" value="delete"><input type="hidden" name="id" value="<?= $s['id'] ?>">
+            <button class="btn small danger" type="submit">Delete</button>
+          </form>
+        </div>
+      </td>
+    </tr>
+    <?php endforeach; ?>
+    <?php if (!$students): ?><tr><td colspan="5" class="hint">No students found.</td></tr><?php endif; ?>
+  </tbody>
 </table></div></div>
 <script>
 (function () {
   var input = document.getElementById('search-input');
-  var table = document.getElementById('students-table');
+  var tbody = document.getElementById('students-tbody');
   var countEl = document.getElementById('student-count');
   var debounceTimer;
 
@@ -151,7 +184,7 @@ function sort_link($label, $key) {
     fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
       .then(function (r) { return r.json(); })
       .then(function (data) {
-        if (data.table) table.outerHTML = data.table;
+        if (data.tbody) tbody.innerHTML = data.tbody;
         if (data.count !== undefined) countEl.textContent = data.count;
       });
   }
