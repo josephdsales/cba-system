@@ -237,7 +237,7 @@ foreach ($exams as $x) { if ((int)$x['id'] === $sel) { $selTitle = $x['title']; 
       </select>
       <div class="grid two" style="margin-top:12px">
         <div><label><input type="checkbox" name="shuffle_questions" value="1"> Shuffle questions</label></div>
-        <div><label><input type="checkbox" name="allow_retake" value="1"> Allow retake</label></div>
+        <div><label><input type="checkbox" name="allow_retake" value="1" checked> Allow retake</label></div>
       </div>
       <label>Assign to Students</label>
       <div style="max-height:200px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:8px">
