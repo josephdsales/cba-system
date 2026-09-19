@@ -156,6 +156,8 @@ $this_page = $is_admin_page ? 'admin_sections.php' : 'teacher_sections.php';
           <input type="hidden" name="action" value="unassign"><input type="hidden" name="id" value="<?= $s['id'] ?>">
           <button class="btn small ghost" type="submit">Unassign</button>
         </form>
+      <?php else: ?>
+        <small class="hint">Assigned by admin</small>
       <?php endif; ?>
     </div><?php else: ?><small class="hint">read-only</small><?php endif; ?></td>
   </tr>
