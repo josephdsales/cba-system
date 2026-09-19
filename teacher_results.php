@@ -226,9 +226,16 @@ foreach ($exams as $x) { if ((int)$x['id'] === $sel) { $selTitle = $x['title']; 
       </div>
       <div id="tab-existing" class="tab-panel">
         <label>Select Exam</label>
-        <select name="target_exam_id" required>
-          <?php foreach ($other_exams as $x): ?><option value="<?= $x['id'] ?>"><?= e($x['title']) ?></option><?php endforeach; ?>
+        <select name="target_exam_id" <?= empty($other_exams) ? 'disabled' : 'required' ?>>
+          <?php if (empty($other_exams)): ?>
+            <option value="">No other exams available — use "Create New Exam" tab</option>
+          <?php else: ?>
+            <?php foreach ($other_exams as $x): ?><option value="<?= $x['id'] ?>"><?= e($x['title']) ?></option><?php endforeach; ?>
+          <?php endif; ?>
         </select>
+        <?php if (empty($other_exams)): ?>
+          <p class="hint">Create another exam first, or use the "Create New Exam" tab.</p>
+        <?php endif; ?>
         <div class="grid two" style="margin-top:12px">
           <div><label><input type="checkbox" name="shuffle_questions" value="1"> Shuffle questions</label></div>
           <div><label><input type="checkbox" name="allow_retake" value="1"> Allow retake</label></div>
