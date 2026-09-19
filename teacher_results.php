@@ -200,6 +200,7 @@ foreach ($exams as $x) { if ((int)$x['id'] === $sel) { $selTitle = $x['title']; 
   </div>
 </div>
 <?php endif; ?>
+<?php if ($rows): ?>
 <div class="card"><div class="table-wrap"><table>
   <tr><th>#</th><th><?= sort_link('Student', 'name') ?></th><th>Section</th><th><?= sort_link('Score', 'score') ?></th><th><?= sort_link('%', 'score') ?></th><th><?= sort_link('Submitted', 'date') ?></th><th></th></tr>
   <?php $i = 1; foreach ($rows as $r): ?>
@@ -217,6 +218,7 @@ foreach ($exams as $x) { if ((int)$x['id'] === $sel) { $selTitle = $x['title']; 
     <form method="post" id="remedial-form">
       <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
       <input type="hidden" name="action" value="remedial">
+      <input type="hidden" name="remedial_mode" id="remedial_mode" value="existing">
       <div class="tabs" style="display:flex;gap:4px;margin-bottom:12px;border-bottom:1px solid var(--line)">
         <button type="button" class="tab-btn active" data-tab="existing">Use Existing Exam</button>
         <button type="button" class="tab-btn" data-tab="new">Create New Exam</button>
@@ -267,9 +269,11 @@ foreach ($exams as $x) { if ((int)$x['id'] === $sel) { $selTitle = $x['title']; 
   var modal = document.getElementById('remedial-modal');
   var tabs = modal.querySelectorAll('.tab-btn');
   var panels = modal.querySelectorAll('.tab-panel');
+  var modeInput = document.getElementById('remedial_mode');
   function showTab(name) {
     tabs.forEach(function (b) { b.classList.toggle('active', b.dataset.tab === name); });
     panels.forEach(function (p) { p.style.display = p.id === 'tab-' + name ? '' : 'none'; });
+    if (modeInput) modeInput.value = name;
   }
   tabs.forEach(function (b) { b.addEventListener('click', function () { showTab(b.dataset.tab); }); });
   window.openRemedialModal = function () { modal.style.display = 'block'; document.body.style.overflow = 'hidden'; };
