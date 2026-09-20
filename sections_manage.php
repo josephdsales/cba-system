@@ -241,6 +241,11 @@ $this_page = $is_admin_page ? 'admin_sections.php' : 'teacher_sections.php';
   <div class="modal-backdrop" onclick="closeStudentsModal()"></div>
   <div class="modal-content card" style="max-width:800px;width:90%;max-height:80vh;overflow:auto" onclick="event.stopPropagation()">
     <h3 style="margin-top:0" id="students-modal-title">👥 Students in Section</h3>
+    <div style="margin-bottom:12px">
+      <input type="text" id="students-search" placeholder="Search by name, gender, username..." 
+             style="width:100%;padding:8px 12px;border:1px solid var(--line);border-radius:8px;font-size:.9rem"
+             autocomplete="off" oninput="filterStudents()">
+    </div>
     <div style="max-height:60vh;overflow:auto">
       <table style="width:100%;border-collapse:collapse;font-size:.85rem">
         <thead style="position:sticky;top:0;background:var(--card);z-index:1">
@@ -267,11 +272,35 @@ $this_page = $is_admin_page ? 'admin_sections.php' : 'teacher_sections.php';
   var modal = document.getElementById('students-modal');
   var title = document.getElementById('students-modal-title');
   var tbody = document.getElementById('students-modal-body');
+  var searchInput = document.getElementById('students-search');
+  var currentStudents = [];
 
   window.openStudentsModal = function (sectionId) {
-    var students = studentsBySection[sectionId] || [];
-    var section = students[0]?.section_name || 'Section';
+    currentStudents = studentsBySection[sectionId] || [];
+    var section = currentStudents[0]?.section_name || 'Section';
     title.textContent = '👥 Students in ' + section;
+    searchInput.value = '';
+    renderStudents(currentStudents);
+    modal.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+  };
+
+  function filterStudents() {
+    var query = searchInput.value.toLowerCase().trim();
+    if (!query) {
+      renderStudents(currentStudents);
+      return;
+    }
+    var filtered = currentStudents.filter(function (s) {
+      var name = (s.fullname || '').toLowerCase();
+      var gender = (s.gender || '').toLowerCase();
+      var username = (s.username || '').toLowerCase();
+      return name.includes(query) || gender.includes(query) || username.includes(query);
+    });
+    renderStudents(filtered);
+  }
+
+  function renderStudents(students) {
     tbody.innerHTML = students.map(function (s) {
       return '<tr style="border-bottom:1px solid var(--line)">' +
         '<td style="padding:8px">' + (s.fullname || '') + '</td>' +
@@ -280,6 +309,14 @@ $this_page = $is_admin_page ? 'admin_sections.php' : 'teacher_sections.php';
         '<td style="text-align:center;padding:8px">' + (s.created_at ? new Date(s.created_at).toLocaleDateString() : '') + '</td>' +
       '</tr>';
     }).join('') || '<tr><td colspan="4" class="hint" style="padding:16px;text-align:center">No students in this section</td></tr>';
+  }
+
+  window.openStudentsModal = function (sectionId) {
+    currentStudents = studentsBySection[sectionId] || [];
+    var section = currentStudents[0]?.section_name || 'Section';
+    title.textContent = '👥 Students in ' + section;
+    searchInput.value = '';
+    renderStudents(currentStudents);
     modal.style.display = 'flex';
     document.body.style.overflow = 'hidden';
   };
