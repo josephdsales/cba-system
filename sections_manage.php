@@ -126,10 +126,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // Fetch sections with teacher assignments
+$concatFn = (db_driver() === 'pgsql') ? 'STRING_AGG(t.fullname, \', \' ORDER BY t.fullname)' : 'GROUP_CONCAT(t.fullname ORDER BY t.fullname)';
 $sections = db()->query("
     SELECT s.*, 
            (SELECT COUNT(*) FROM users u WHERE u.section_id=s.id) AS student_count,
-           (SELECT GROUP_CONCAT(t.fullname ORDER BY t.fullname) 
+           (SELECT $concatFn 
             FROM section_teachers st 
             JOIN users t ON t.id=st.teacher_id 
             WHERE st.section_id=s.id) AS teacher_names
