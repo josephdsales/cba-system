@@ -293,7 +293,7 @@ $this_page = $is_admin_page ? 'admin_sections.php' : 'teacher_sections.php';
     }
     var filtered = currentStudents.filter(function (s) {
       var name = (s.fullname || '').toLowerCase();
-      var gender = (s.gender || '').toLowerCase();
+      var gender = (s.gender || '').trim().toLowerCase();
       var username = (s.username || '').toLowerCase();
       return name.includes(query) || gender.includes(query) || username.includes(query);
     });
