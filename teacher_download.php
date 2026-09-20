@@ -19,6 +19,12 @@ $st = db()->prepare("SELECT q.*, an.student_answer, an.is_correct, an.points_ear
 $st->execute([$attempt_id, $attempt['exam_id']]);
 $items = $st->fetchAll();
 
+// Respect shuffle_seed for consistent PDF ordering
+if (!empty($attempt['shuffle_seed'])) {
+    mt_srand((int)$attempt['shuffle_seed']);
+    shuffle($items);
+}
+
 $pdf = new MiniPDF();
 $pdf->setFooter('DONA JUANA CHIOCO NATIONAL HIGH SCHOOL - Computer-based Assessment - JDS');
 $pdf->addLine($attempt['title'], 16, true);

@@ -24,6 +24,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $status = in_array($_POST['status'] ?? '', ['draft','published','closed'], true) ? $_POST['status'] : 'draft';
         $shuffle = 0;
         $retake = 0;
+        
+        // Validate section assignment - teacher can only assign exams to sections they're assigned to
+        $allowed_section_ids = array_column($sections, 'id');
+        if ($sec !== 0 && !in_array($sec, $allowed_section_ids, true)) {
+            set_flash('You can only assign exams to sections assigned to you.');
+            header('Location: teacher_exams.php'); exit;
+        }
+        
         if ($title === '') set_flash('Exam title is required.');
         else {
             if ($id > 0) {

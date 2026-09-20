@@ -20,6 +20,12 @@ $st = db()->prepare("SELECT q.*, an.student_answer, an.is_correct, an.points_ear
 $st->execute([$attempt_id, $attempt['exam_id']]);
 $items = $st->fetchAll();
 
+// Respect shuffle_seed for consistent review ordering
+if (!empty($attempt['shuffle_seed'])) {
+    mt_srand((int)$attempt['shuffle_seed']);
+    shuffle($items);
+}
+
 $title = 'Review: ' . $attempt['student_name'];
 include __DIR__ . '/includes/header.php';
 ?>

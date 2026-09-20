@@ -64,6 +64,16 @@ CREATE TABLE IF NOT EXISTS exam_students (
   CONSTRAINT fk_exam_students_student FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
+-- Section-Teachers many-to-many relationship (co-teachers)
+CREATE TABLE IF NOT EXISTS section_teachers (
+  section_id INT NOT NULL,
+  teacher_id INT NOT NULL,
+  assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (section_id, teacher_id),
+  CONSTRAINT fk_section_teachers_section FOREIGN KEY (section_id) REFERENCES sections(id) ON DELETE CASCADE,
+  CONSTRAINT fk_section_teachers_teacher FOREIGN KEY (teacher_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
 -- Questions belonging to an exam
 CREATE TABLE IF NOT EXISTS questions (
   id INT AUTO_INCREMENT PRIMARY KEY,

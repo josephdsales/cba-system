@@ -1,10 +1,8 @@
 <?php
 // Shared section manager used by BOTH admin and teacher.
-// Visibility: admin sees all. A teacher sees only:
-//   - sections they created, plus
-//   - sections admin assigned to them, plus shared (unassigned) ones.
-// Teachers can edit/delete ONLY sections they created;
-// admin-assigned ones are read-only for the teacher.
+// New model: sections can have multiple teachers (co-teachers).
+// Admin manages all assignments via multi-select.
+// Teachers see ALL sections but can only edit sections assigned to them.
 require __DIR__ . '/includes/config.php';
 require __DIR__ . '/includes/auth.php';
 
@@ -13,30 +11,36 @@ if (!in_array($me['role'], ['admin', 'teacher'], true)) { http_response_code(403
 $is_admin_page = ($me['role'] === 'admin');
 $user = $me;
 
+// Get all teachers for assignment UI
 $teachers = db()->query("SELECT id, fullname FROM users WHERE role='teacher' ORDER BY (lastname IS NULL), lastname, firstname, fullname")->fetchAll();
 
-function can_edit_section(array $s, array $me): bool {
-    // Admin sees every section; a teacher's list is already filtered to
-    // visible sections (own + assigned + shared), all editable.
-    return true;
+// Get section-teacher assignments for display
+$section_teachers = [];
+$st = db()->prepare('SELECT section_id, GROUP_CONCAT(teacher_id) as teacher_ids FROM section_teachers GROUP BY section_id');
+$st->execute();
+foreach ($st->fetchAll() as $row) {
+    $section_teachers[$row['section_id']] = explode(',', $row['teacher_ids']);
 }
 
+// Check if teacher can edit a section (admin or assigned teacher)
+function can_edit_section(array $s, array $me, array $section_teachers): bool {
+    if ($me['role'] === 'admin') return true;
+    $sid = $s['id'];
+    return isset($section_teachers[$sid]) && in_array($me['id'], $section_teachers[$sid]);
+}
+
+// Check if teacher can delete (admin only)
 function can_delete_section(array $s, array $me): bool {
-    // Only admin can delete sections
     return $me['role'] === 'admin';
-}
-
-function can_unassign_section(array $s, array $me): bool {
-    // Teacher can unassign only sections assigned to them
-    return $me['role'] === 'teacher' && (int)($s['assigned_teacher_id'] ?? 0) === (int)$me['id'];
 }
 
 $edit = null;
 if (isset($_GET['edit'])) {
-    $st = db()->prepare('SELECT s.*, t.fullname AS teacher_name FROM sections s LEFT JOIN users t ON t.id=s.assigned_teacher_id WHERE s.id=?');
+    $st = db()->prepare('SELECT s.* FROM sections s WHERE s.id=?');
     $st->execute([(int)$_GET['edit']]); $edit = $st->fetch();
-    if ($edit && !can_edit_section($edit, $me)) { http_response_code(403); exit('Forbidden: only the teacher who created this section (or admin) can edit it.'); }
+    if ($edit && !can_edit_section($edit, $me, $section_teachers)) { http_response_code(403); exit('Forbidden: only assigned teachers can edit this section.'); }
 }
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     check_csrf();
     $back = $is_admin_page ? 'admin_sections.php' : 'teacher_sections.php';
@@ -44,53 +48,72 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $id = (int)($_POST['id'] ?? 0);
         $name = trim($_POST['name'] ?? '');
         $desc = trim($_POST['description'] ?? '');
-        // Admin picks assignee; teacher's sections auto-belong to themselves.
-        $assigned = $is_admin_page ? (int)($_POST['assigned_teacher_id'] ?? 0) : (int)$me['id'];
-        if ($name === '') set_flash('Section name is required.');
-        else {
+        
+        // Get assigned teacher IDs
+        $assigned_teacher_ids = [];
+        if ($is_admin_page) {
+            $assigned_teacher_ids = array_map('intval', $_POST['assigned_teacher_ids'] ?? []);
+        } else {
+            // Teachers can only assign to themselves
+            $assigned_teacher_ids = [$me['id']];
+        }
+
+        if ($name === '') {
+            set_flash('Section name is required.');
+        } else {
             try {
                 if ($id > 0) {
                     $st = db()->prepare('SELECT * FROM sections WHERE id=?');
                     $st->execute([$id]); $cur = $st->fetch();
-                    if (!$cur || !can_edit_section($cur, $me)) { set_flash('Not allowed to edit this section.'); }
-                    else {
+                    if (!$cur || !can_edit_section($cur, $me, $section_teachers)) {
+                        set_flash('Not allowed to edit this section.');
+                    } else {
+                        $st = db()->prepare('UPDATE sections SET name=?, description=? WHERE id=?');
+                        $st->execute([$name, $desc ?: null, $id]);
+                        
+                        // Update teacher assignments (admin only)
                         if ($is_admin_page) {
-                            $st = db()->prepare('UPDATE sections SET name=?, description=?, assigned_teacher_id=? WHERE id=?');
-                            $st->execute([$name, $desc ?: null, $assigned ?: null, $id]);
-                        } else {
-                            $st = db()->prepare('UPDATE sections SET name=?, description=? WHERE id=?');
-                            $st->execute([$name, $desc ?: null, $id]);
+                            db()->prepare('DELETE FROM section_teachers WHERE section_id=?')->execute([$id]);
+                            if (!empty($assigned_teacher_ids)) {
+                                $ins = db()->prepare('INSERT IGNORE INTO section_teachers (section_id, teacher_id) VALUES (?, ?)');
+                                foreach ($assigned_teacher_ids as $tid) {
+                                    $ins->execute([$id, $tid]);
+                                }
+                            }
                         }
                         set_flash('Section updated.');
                     }
                 } else {
-                    $st = db()->prepare('INSERT INTO sections (name, description, created_by, assigned_teacher_id) VALUES (?, ?, ?, ?)');
-                    $st->execute([$name, $desc ?: null, $me['id'], $assigned ?: null]);
-                    set_flash($is_admin_page ? 'Section added.' : 'Section added (visible only to you).');
+                    // New section - creator is always assigned
+                    $st = db()->prepare('INSERT INTO sections (name, description, created_by) VALUES (?, ?, ?)');
+                    $st->execute([$name, $desc ?: null, $me['id']]);
+                    $id = (int)db()->lastInsertId();
+                    
+                    // Assign teachers
+                    if ($is_admin_page && !empty($assigned_teacher_ids)) {
+                        $ins = db()->prepare('INSERT IGNORE INTO section_teachers (section_id, teacher_id) VALUES (?, ?)');
+                        foreach ($assigned_teacher_ids as $tid) {
+                            $ins->execute([$id, $tid]);
+                        }
+                    } else {
+                        // Teacher creates section - assign to themselves
+                        $ins = db()->prepare('INSERT IGNORE INTO section_teachers (section_id, teacher_id) VALUES (?, ?)');
+                        $ins->execute([$id, $me['id']]);
+                    }
+                    set_flash($is_admin_page ? 'Section added.' : 'Section added (assigned to you).');
                 }
             } catch (PDOException $ex) { set_flash('Error: section name already exists.'); }
         }
         header("Location: $back"); exit;
     }
-    if (($_POST['action'] ?? '') === 'unassign') {
-        $id = (int)$_POST['id'];
-        $st = db()->prepare('SELECT * FROM sections WHERE id=?');
-        $st->execute([$id]); $cur = $st->fetch();
-        if (!$cur || !can_unassign_section($cur, $me)) {
-            set_flash('Not allowed to unassign this section.');
-        } else {
-            $st = db()->prepare('UPDATE sections SET assigned_teacher_id=NULL WHERE id=?');
-            $st->execute([$id]);
-            set_flash('Section unassigned — now shared with all teachers.');
-        }
-        header("Location: $back"); exit;
-    }
+    
     if (($_POST['action'] ?? '') === 'delete') {
         $id = (int)$_POST['id'];
         $st = db()->prepare('SELECT * FROM sections WHERE id=?');
         $st->execute([$id]); $cur = $st->fetch();
-        if (!$cur || !can_edit_section($cur, $me)) set_flash('Not allowed to delete this section.');
-        else {
+        if (!$cur || !can_delete_section($cur, $me)) {
+            set_flash('Not allowed to delete this section.');
+        } else {
             try {
                 $st = db()->prepare('DELETE FROM sections WHERE id=?');
                 $st->execute([$id]);
@@ -101,11 +124,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-if ($is_admin_page) {
-    $sections = db()->query("SELECT s.*, t.fullname AS teacher_name, (SELECT COUNT(*) FROM users u WHERE u.section_id=s.id) AS student_count FROM sections s LEFT JOIN users t ON t.id=s.assigned_teacher_id ORDER BY s.name")->fetchAll();
-} else {
-    $sections = visible_sections((int)$me['id']);
-}
+// Fetch sections with teacher assignments
+$sections = db()->query("
+    SELECT s.*, 
+           (SELECT COUNT(*) FROM users u WHERE u.section_id=s.id) AS student_count,
+           (SELECT GROUP_CONCAT(t.fullname ORDER BY t.fullname) 
+            FROM section_teachers st 
+            JOIN users t ON t.id=st.teacher_id 
+            WHERE st.section_id=s.id) AS teacher_names
+    FROM sections s 
+    ORDER BY s.name
+")->fetchAll();
 
 // Get students for each section for the modal
 $section_students = [];
@@ -119,13 +148,13 @@ if ($sections) {
         $section_students[$stu['section_id']][] = $stu;
     }
 }
+
 $title = 'Manage Sections';
 include __DIR__ . '/includes/header.php';
 $this_page = $is_admin_page ? 'admin_sections.php' : 'teacher_sections.php';
 ?>
 <div class="card">
   <h3 style="margin-top:0"><?= $edit ? 'Edit section' : 'Add section' ?></h3>
-  <?php if (!$is_admin_page): ?><p class="hint">Sections you create are visible <b>only to you</b> — other teachers won't see them.</p><?php endif; ?>
   <form method="post">
     <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
     <input type="hidden" name="action" value="save">
@@ -135,27 +164,32 @@ $this_page = $is_admin_page ? 'admin_sections.php' : 'teacher_sections.php';
       <div><label>Description (optional)</label><input type="text" name="description" value="<?= e($edit['description'] ?? '') ?>"></div>
     </div>
     <?php if ($is_admin_page): ?>
-      <label>Assign to teacher</label>
-      <select name="assigned_teacher_id">
+      <label>Assign teachers</label>
+      <select name="assigned_teacher_ids[]" multiple size="5" style="height:auto">
         <option value="0">— Shared (all teachers) —</option>
         <?php foreach ($teachers as $t): ?>
-          <option value="<?= $t['id'] ?>" <?= ((int)($edit['assigned_teacher_id'] ?? 0) === (int)$t['id']) ? 'selected' : '' ?>>Only: <?= e($t['fullname']) ?></option>
+          <option value="<?= $t['id'] ?>" 
+            <?= ($edit && isset($section_teachers[$edit['id']]) && in_array($t['id'], $section_teachers[$edit['id']])) ? 'selected' : '' ?>>
+            <?= e($t['fullname']) ?>
+          </option>
         <?php endforeach; ?>
       </select>
+      <small class="hint">Hold Ctrl/Cmd to select multiple. Leave empty for shared (all teachers).</small>
+    <?php else: ?>
+      <p class="hint">This section will be assigned to you.</p>
     <?php endif; ?>
     <div class="btnrow"><button class="btn" type="submit"><?= $edit ? 'Save' : 'Add section' ?></button>
     <?php if ($edit): ?><a class="btn ghost" href="<?= $this_page ?>">Cancel</a><?php endif; ?></div>
   </form>
 </div>
 <div class="card"><div class="table-wrap"><table>
-  <tr><th>Section</th><th>Description</th><th><?= $is_admin_page ? 'Assigned to' : 'Owner' ?></th><th>Students</th><th>Actions</th></tr>
+  <tr><th>Section</th><th>Description</th><th>Assigned Teachers</th><th>Students</th><th>Actions</th></tr>
   <?php foreach ($sections as $s): ?>
   <tr>
     <td><b><?= e($s['name']) ?></b></td><td><?= e($s['description'] ?? '') ?></td>
-    <td><?php if ($is_admin_page): ?><?= e($s['teacher_name'] ?? 'Shared (all)') ?>
-      <?php else: ?><?= ((int)($s['created_by'] ?? 0) === (int)$me['id']) ? 'Mine' : ('Assigned by admin' . ($s['assigned_teacher_id'] ? '' : ' · Shared')) ?><?php endif; ?></td>
+    <td><?= e($s['teacher_names'] ?? 'Shared (all)') ?></td>
     <td><?= $s['student_count'] ?></td>
-    <td><?php if (can_edit_section($s, $me)): ?><div class="btnrow" style="margin:0">
+    <td><?php if (can_edit_section($s, $me, $section_teachers)): ?><div class="btnrow" style="margin:0">
       <a class="btn small ghost" href="<?= $this_page ?>?edit=<?= $s['id'] ?>">Edit</a>
       <button type="button" class="btn small" onclick="openStudentsModal(<?= $s['id'] ?>)">👥 Students</button>
       <?php if ($is_admin_page): ?>
@@ -164,19 +198,11 @@ $this_page = $is_admin_page ? 'admin_sections.php' : 'teacher_sections.php';
           <input type="hidden" name="action" value="delete"><input type="hidden" name="id" value="<?= $s['id'] ?>">
           <button class="btn small danger" type="submit">Delete</button>
         </form>
-      <?php elseif (can_unassign_section($s, $me)): ?>
-        <form method="post" style="display:inline" onsubmit="return confirm('Unassign section <?= e($s['name']) ?>? It will become shared.')">
-          <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
-          <input type="hidden" name="action" value="unassign"><input type="hidden" name="id" value="<?= $s['id'] ?>">
-          <button class="btn small ghost" type="submit">Unassign</button>
-        </form>
-      <?php else: ?>
-        <small class="hint">Assigned by admin</small>
       <?php endif; ?>
     </div><?php else: ?><small class="hint">read-only</small><?php endif; ?></td>
   </tr>
   <?php endforeach; ?>
-  <?php if (!$sections): ?><tr><td colspan="5" class="hint">No sections visible to you yet.</td></tr><?php endif; ?>
+  <?php if (!$sections): ?><tr><td colspan="5" class="hint">No sections yet.</td></tr><?php endif; ?>
 </table></div></div>
 
 <div id="students-modal" class="modal" style="display:none">

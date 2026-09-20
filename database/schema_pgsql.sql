@@ -51,6 +51,13 @@ CREATE TABLE IF NOT EXISTS exam_students (
   PRIMARY KEY (exam_id, student_id)
 );
 
+CREATE TABLE IF NOT EXISTS section_teachers (
+  section_id INT NOT NULL REFERENCES sections(id) ON DELETE CASCADE,
+  teacher_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (section_id, teacher_id)
+);
+
 CREATE TABLE IF NOT EXISTS questions (
   id SERIAL PRIMARY KEY,
   exam_id INT NOT NULL REFERENCES exams(id) ON DELETE CASCADE,

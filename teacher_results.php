@@ -145,6 +145,8 @@ if ($sel && $best_rows) {
     foreach ($exams as $x) { if ((int)$x['id'] === $sel) { $passing = (float)$x['passing_percent']; break; } }
     if ($passing !== null) {
         $failed_students = array_filter($best_rows, fn($r) => (float)$r['percentage'] < $passing);
+        // Deduplicate by student_id (in case same student has multiple best attempts with same score)
+        $failed_students = array_values(array_unique($failed_students, SORT_REGULAR));
     }
 }
 

@@ -3,7 +3,7 @@ require __DIR__ . '/includes/config.php';
 require __DIR__ . '/includes/auth.php';
 $user = require_role('student');
 
-$st = db()->prepare("SELECT a.*, e.title, e.passing_percent FROM attempts a JOIN exams e ON e.id=a.exam_id
+$st = db()->prepare("SELECT a.*, e.title, e.passing_percent, e.allow_retake FROM attempts a JOIN exams e ON e.id=a.exam_id
     WHERE a.student_id=? AND a.submitted_at IS NOT NULL ORDER BY a.submitted_at DESC");
 $st->execute([$user['id']]);
 $rows = $st->fetchAll();
@@ -18,7 +18,14 @@ include __DIR__ . '/includes/header.php';
     <td><b><?= e($r['percentage']) ?>%</b></td>
     <td><?= !empty($r['needs_grading']) ? '<span class="badge b-draft">FOR CHECKING</span>' : ($r['percentage'] >= $r['passing_percent'] ? '<span class="badge b-published">PASSED</span>' : '<span class="badge b-closed">FAILED</span>') ?></td>
     <td><?= e($r['submitted_at']) ?></td>
-    <td><a class="btn small ghost" href="student_review.php?attempt_id=<?= $r['id'] ?>">Review</a></td>
+    <td>
+      <div class="btnrow" style="margin:0;gap:4px">
+        <a class="btn small ghost" href="student_review.php?attempt_id=<?= $r['id'] ?>">Review</a>
+        <?php if (!empty($r['allow_retake'])): ?>
+        <a class="btn small ok" href="student_take.php?exam_id=<?= $r['exam_id'] ?>">Retake</a>
+        <?php endif; ?>
+      </div>
+    </td>
   </tr>
   <?php endforeach; ?>
   <?php if (!$rows): ?><tr><td colspan="6" class="hint">No scores yet. <a href="student_exams.php">Take an exam</a>.</td></tr><?php endif; ?>

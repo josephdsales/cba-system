@@ -21,6 +21,12 @@ $st = db()->prepare("SELECT q.id, q.question_text, q.qtype, q.option_a, q.option
 $st->execute([$attempt_id, $attempt['exam_id']]);
 $items = $st->fetchAll();
 
+// Respect shuffle_seed for consistent review ordering
+if (!empty($attempt['shuffle_seed'])) {
+    mt_srand((int)$attempt['shuffle_seed']);
+    shuffle($items);
+}
+
 $title = 'Review: ' . $attempt['title'];
 $taken_fmt = date('m-d-Y H:i:s', strtotime($attempt['submitted_at']));
 include __DIR__ . '/includes/header.php';

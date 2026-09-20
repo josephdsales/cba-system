@@ -51,6 +51,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 try { db()->exec('ALTER TABLE attempts DROP INDEX uq_attempt'); } catch (Throwable $e) { /* doesn't exist */ }
             }
+            // v5e upgrade: section_teachers junction table for many-to-many section-teacher relationship.
+            if (db_driver() === 'pgsql') {
+                try { db()->exec('CREATE TABLE IF NOT EXISTS section_teachers (section_id INT NOT NULL REFERENCES sections(id) ON DELETE CASCADE, teacher_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE, assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (section_id, teacher_id))'); } catch (Throwable $e) { /* exists */ }
+            } else {
+                try { db()->exec('CREATE TABLE IF NOT EXISTS section_teachers (section_id INT NOT NULL, teacher_id INT NOT NULL, assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (section_id, teacher_id), CONSTRAINT fk_section_teachers_section FOREIGN KEY (section_id) REFERENCES sections(id) ON DELETE CASCADE, CONSTRAINT fk_section_teachers_teacher FOREIGN KEY (teacher_id) REFERENCES users(id) ON DELETE CASCADE) ENGINE=InnoDB'); } catch (Throwable $e) { /* exists */ }
+            }
+            // v5f upgrade: migrate existing assigned_teacher_id to section_teachers junction table.
+            try {
+                $st = db()->prepare('SELECT id, assigned_teacher_id FROM sections WHERE assigned_teacher_id IS NOT NULL');
+                $st->execute();
+                while ($row = $st->fetch()) {
+                    $ins = db()->prepare('INSERT IGNORE INTO section_teachers (section_id, teacher_id) VALUES (?, ?)');
+                    $ins->execute([$row['id'], $row['assigned_teacher_id']]);
+                }
+            } catch (Throwable $e) { /* migration failed or no data */ }
             if (db_driver() === 'pgsql') {
                 try { db()->exec('ALTER TABLE questions DROP CONSTRAINT IF EXISTS questions_qtype_check'); } catch (Throwable $e) {}
                 try { db()->exec("ALTER TABLE questions ADD CONSTRAINT questions_qtype_check CHECK (qtype IN ('mcq','truefalse','identification','essay'))"); } catch (Throwable $e) {}
