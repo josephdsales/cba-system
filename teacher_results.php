@@ -417,6 +417,7 @@ foreach ($exams as $x) { if ((int)$x['id'] === $sel) { $selTitle = $x['title']; 
       </table>
     </div>
     <div class="btnrow" style="margin-top:12px">
+      <a class="btn" href="teacher_item_analysis_download.php?exam_id=<?= $sel ?>">⬇ Download Excel</a>
       <button class="btn ghost" onclick="closeItemAnalysisModal()">Close</button>
     </div>
   </div>
