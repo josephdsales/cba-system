@@ -168,8 +168,10 @@ if ($best_rows) {
 }
 $topn = isset($_GET['topn']) ? max(1, min(20, (int)$_GET['topn'])) : 5;
 $analysis = [];
+$item_analysis = [];
 if ($sel && $best_rows) {
-    $st = db()->prepare("SELECT q.id, q.question_text, COUNT(an.id) AS tries, COALESCE(SUM(an.is_correct),0) AS got
+    $st = db()->prepare("SELECT q.id, q.question_text, q.qtype, q.option_a, q.option_b, q.option_c, q.option_d, q.correct_answer, q.points,
+        COUNT(an.id) AS tries, COALESCE(SUM(an.is_correct),0) AS got
         FROM questions q LEFT JOIN answers an ON an.question_id=q.id
         LEFT JOIN attempts t ON t.id=an.attempt_id AND t.submitted_at IS NOT NULL
         JOIN (
@@ -179,11 +181,53 @@ if ($sel && $best_rows) {
             GROUP BY student_id
         ) best ON best.student_id=t.student_id AND best.max_pct=t.percentage
         WHERE q.exam_id=? AND (an.id IS NULL OR t.id IS NOT NULL)
-        GROUP BY q.id, q.question_text");
+        GROUP BY q.id, q.question_text, q.qtype, q.option_a, q.option_b, q.option_c, q.option_d, q.correct_answer, q.points");
     $st->execute([$sel, $sel]);
     foreach ($st->fetchAll() as $r) {
         $tries = (int)$r['tries'];
-        if ($tries > 0) $analysis[] = ['text' => $r['question_text'], 'pct' => round($r['got'] / $tries * 100, 1), 'got' => $r['got'], 'tries' => $tries];
+        if ($tries > 0) {
+            $pct = round($r['got'] / $tries * 100, 1);
+            $analysis[] = ['text' => $r['question_text'], 'pct' => $pct, 'got' => $r['got'], 'tries' => $tries];
+            
+            // Item analysis for each question
+            $item = [
+                'id' => $r['id'],
+                'text' => $r['question_text'],
+                'qtype' => $r['qtype'],
+                'pct' => $pct,
+                'tries' => $tries,
+                'got' => $r['got'],
+                'points' => $r['points'],
+            ];
+            
+            if ($r['qtype'] === 'mcq') {
+                // Distractor analysis
+                $st2 = db()->prepare("SELECT an.student_answer, COUNT(*) as cnt,
+                    COALESCE(SUM(an.is_correct),0) as correct_cnt
+                    FROM answers an
+                    LEFT JOIN attempts t ON t.id=an.attempt_id AND t.submitted_at IS NOT NULL
+                    JOIN (
+                        SELECT student_id, MAX(percentage) AS max_pct
+                        FROM attempts
+                        WHERE exam_id=? AND submitted_at IS NOT NULL
+                        GROUP BY student_id
+                    ) best ON best.student_id=t.student_id AND best.max_pct=t.percentage
+                    WHERE an.question_id=? AND t.id IS NOT NULL
+                    GROUP BY an.student_answer");
+                $st2->execute([$sel, $r['id']]);
+                $distractors = [];
+                foreach ($st2->fetchAll() as $d) {
+                    $ans = $d['student_answer'];
+                    $distractors[strtoupper(substr($ans, 0, 1))] = [
+                        'count' => (int)$d['cnt'],
+                        'pct' => round($d['cnt'] / $tries * 100, 1),
+                        'is_correct' => (strtoupper(substr($ans, 0, 1)) === strtoupper($r['correct_answer'])),
+                    ];
+                }
+                $item['distractors'] = $distractors;
+            }
+            $item_analysis[] = $item;
+        }
     }
     usort($analysis, function ($a, $b) { return $b['pct'] <=> $a['pct']; });
 }
@@ -226,6 +270,9 @@ foreach ($exams as $x) { if ((int)$x['id'] === $sel) { $selTitle = $x['title']; 
     <?php if ($best_rows): ?><a class="btn ghost" href="teacher_summary_download.php?exam_id=<?= $sel ?>">⬇ Download Summary (PDF)</a><?php endif; ?>
     <?php if ($failed_students): ?>
     <button type="button" class="btn ok" onclick="openRemedialModal()">🩺 Remedial</button>
+    <?php endif; ?>
+    <?php if ($best_rows): ?>
+    <button type="button" class="btn" onclick="openItemAnalysisModal()">📊 Item Analysis</button>
     <?php endif; ?>
   </form>
 </div>
@@ -314,11 +361,74 @@ foreach ($exams as $x) { if ((int)$x['id'] === $sel) { $selTitle = $x['title']; 
     </form>
   </div>
 </div>
+
+<div id="item-analysis-modal" class="modal" style="display:none">
+  <div class="modal-backdrop" onclick="closeItemAnalysisModal()"></div>
+  <div class="modal-content card" style="max-width:900px;width:95%;max-height:90vh;overflow:auto" onclick="event.stopPropagation()">
+    <h3 style="margin-top:0">📊 Item Analysis: <?= e($selTitle) ?></h3>
+    <p class="hint">Based on best attempt per student (<?= count($best_rows) ?> students)</p>
+    <div style="max-height:60vh;overflow:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:.85rem">
+        <thead style="position:sticky;top:0;background:var(--card);z-index:1">
+          <tr style="border-bottom:2px solid var(--line)">
+            <th style="text-align:left;padding:8px">#</th>
+            <th style="text-align:left;padding:8px">Question</th>
+            <th style="text-align:center;padding:8px">Type</th>
+            <th style="text-align:center;padding:8px">P-value</th>
+            <th style="text-align:center;padding:8px">Discrim.</th>
+            <th style="text-align:center;padding:8px">Distractors</th>
+          </tr>
+        </thead>
+        <tbody>
+          <?php $qnum = 1; foreach ($item_analysis as $ia): ?>
+          <tr style="border-bottom:1px solid var(--line)">
+            <td style="padding:8px"><?= $qnum++ ?></td>
+            <td style="padding:8px;max-width:300px"><?= e(mb_strimwidth($ia['text'], 0, 120, '…')) ?></td>
+            <td style="text-align:center;padding:8px"><span class="badge b-<?= $ia['qtype'] === 'mcq' ? 'draft' : ($ia['qtype'] === 'truefalse' ? 'published' : 'closed') ?>"><?= e($ia['qtype']) ?></span></td>
+            <td style="text-align:center;padding:8px">
+              <span style="color:<?= $ia['pct'] < 30 ? 'var(--bad)' : ($ia['pct'] > 90 ? 'var(--warn)' : 'var(--ok)') ?>;font-weight:600"><?= $ia['pct'] ?>%</span>
+              <small class="hint">(<?= $ia['got'] ?>/<?= $ia['tries'] ?>)</small>
+            </td>
+            <td style="text-align:center;padding:8px">
+              <span style="color:var(--muted)">—</span>
+              <small class="hint">Point-biserial</small>
+            </td>
+            <td style="padding:8px">
+              <?php if ($ia['qtype'] === 'mcq' && !empty($ia['distractors'])): ?>
+                <div style="font-size:.75rem;line-height:1.4">
+                  <?php foreach (['A','B','C','D'] as $opt): if (!empty($ia['distractors'][$opt])): $d = $ia['distractors'][$opt]; ?>
+                    <div style="display:flex;gap:4px;align-items:center">
+                      <span style="font-weight:<?= $d['is_correct'] ? '700' : '400' ?>;color:<?= $d['is_correct'] ? 'var(--ok)' : 'var(--ink)' ?>"><?= $opt ?>.</span>
+                      <span style="color:var(--muted)"><?= $d['pct'] ?>%</span>
+                      <?= $d['is_correct'] ? '<span class="badge b-published" style="font-size:.6rem">key</span>' : '' ?>
+                    </div>
+                  <?php endif; endforeach; ?>
+                </div>
+              <?php else: ?>
+                <span class="hint">—</span>
+              <?php endif; ?>
+            </td>
+          </tr>
+          <?php endforeach; ?>
+        </tbody>
+      </table>
+    </div>
+    <div class="btnrow" style="margin-top:12px">
+      <button class="btn ghost" onclick="closeItemAnalysisModal()">Close</button>
+    </div>
+  </div>
+</div>
+
 <script>
 (function () {
   var modal = document.getElementById('remedial-modal');
   window.openRemedialModal = function () { modal.style.display = 'block'; document.body.style.overflow = 'hidden'; };
   window.closeRemedialModal = function () { modal.style.display = 'none'; document.body.style.overflow = ''; };
+})();
+(function () {
+  var modal = document.getElementById('item-analysis-modal');
+  window.openItemAnalysisModal = function () { modal.style.display = 'block'; document.body.style.overflow = 'hidden'; };
+  window.closeItemAnalysisModal = function () { modal.style.display = 'none'; document.body.style.overflow = ''; };
 })();
 </script>
 <style>
