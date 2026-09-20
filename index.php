@@ -36,7 +36,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Failed login
         $_SESSION[$key] = ['count' => $fails + 1, 'time' => $now];
         $error = 'Invalid username or password.';
-    }
     } catch (PDOException $ex) {
         $error = 'Database not ready. Import database/schema.sql, check includes/config.php, then open install.php. (' . $ex->getMessage() . ')';
     }
