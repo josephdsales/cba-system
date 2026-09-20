@@ -374,6 +374,8 @@ foreach ($exams as $x) { if ((int)$x['id'] === $sel) { $selTitle = $x['title']; 
             <th style="text-align:left;padding:8px">#</th>
             <th style="text-align:left;padding:8px">Question</th>
             <th style="text-align:center;padding:8px">Type</th>
+            <th style="text-align:center;padding:8px">Correct</th>
+            <th style="text-align:center;padding:8px">Total</th>
             <th style="text-align:center;padding:8px">P-value</th>
             <th style="text-align:center;padding:8px">Discrim.</th>
             <th style="text-align:center;padding:8px">Distractors</th>
@@ -385,9 +387,10 @@ foreach ($exams as $x) { if ((int)$x['id'] === $sel) { $selTitle = $x['title']; 
             <td style="padding:8px"><?= $qnum++ ?></td>
             <td style="padding:8px;max-width:300px"><?= e(mb_strimwidth($ia['text'], 0, 120, '…')) ?></td>
             <td style="text-align:center;padding:8px"><span class="badge b-<?= $ia['qtype'] === 'mcq' ? 'draft' : ($ia['qtype'] === 'truefalse' ? 'published' : 'closed') ?>"><?= e($ia['qtype']) ?></span></td>
+            <td style="text-align:center;padding:8px;color:var(--ok);font-weight:600"><?= $ia['got'] ?></td>
+            <td style="text-align:center;padding:8px;color:var(--ink);font-weight:600"><?= $ia['tries'] ?></td>
             <td style="text-align:center;padding:8px">
               <span style="color:<?= $ia['pct'] < 30 ? 'var(--bad)' : ($ia['pct'] > 90 ? 'var(--warn)' : 'var(--ok)') ?>;font-weight:600"><?= $ia['pct'] ?>%</span>
-              <small class="hint">(<?= $ia['got'] ?>/<?= $ia['tries'] ?>)</small>
             </td>
             <td style="text-align:center;padding:8px">
               <span style="color:var(--muted)">—</span>
