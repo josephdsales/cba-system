@@ -296,18 +296,19 @@ $this_page = $is_admin_page ? 'admin_sections.php' : 'teacher_sections.php';
       var gender = (s.gender || '').trim().toLowerCase();
       var username = (s.username || '').toLowerCase();
       
-      // Exact gender matching (handle "male" not matching inside "female")
+      // Gender matching: exact match OR prefix match (min 2 chars) but avoid "male" in "female"
       var genderMatch = false;
       if (gender === query) {
         genderMatch = true;
-      } else if (query === 'm' && (gender === 'male' || gender === 'm')) {
-        genderMatch = true;
-      } else if (query === 'f' && (gender === 'female' || gender === 'f')) {
-        genderMatch = true;
-      } else if (query === 'male' && gender === 'male') {
-        genderMatch = true;
-      } else if (query === 'female' && gender === 'female') {
-        genderMatch = true;
+      } else if (query.length >= 2) {
+        // Prefix match for gender (e.g., "fe" matches "female", "ma" matches "male")
+        // But ensure "male" doesn't match "female" by checking full word boundaries
+        if (gender.startsWith(query)) {
+          // Additional check: if query is "male" or starts with "male", don't match "female"
+          if (!(query.startsWith('male') && gender === 'female')) {
+            genderMatch = true;
+          }
+        }
       }
       
       return name.includes(query) || genderMatch || username.includes(query);
