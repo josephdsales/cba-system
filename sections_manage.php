@@ -16,7 +16,8 @@ $teachers = db()->query("SELECT id, fullname FROM users WHERE role='teacher' ORD
 
 // Get section-teacher assignments for display
 $section_teachers = [];
-$st = db()->prepare('SELECT section_id, GROUP_CONCAT(teacher_id) as teacher_ids FROM section_teachers GROUP BY section_id');
+$concatFn = (db_driver() === 'pgsql') ? 'STRING_AGG(teacher_id::text, \',\')' : 'GROUP_CONCAT(teacher_id)';
+$st = db()->prepare("SELECT section_id, $concatFn as teacher_ids FROM section_teachers GROUP BY section_id");
 $st->execute();
 foreach ($st->fetchAll() as $row) {
     $section_teachers[$row['section_id']] = explode(',', $row['teacher_ids']);
