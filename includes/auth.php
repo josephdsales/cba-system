@@ -62,13 +62,16 @@ function check_csrf(): void {
 // Sections visible to a teacher: all sections, but they can only edit assigned ones.
 // Admins don't use this (they see everything).
 function visible_sections(int $teacher_id): array {
-    $st = db()->prepare("SELECT s.*, t.fullname AS teacher_name,
-        (SELECT COUNT(*) FROM users u WHERE u.section_id=s.id) AS student_count
+    $concatFn = (db_driver() === 'pgsql') ? 'STRING_AGG(t.fullname, \', \' ORDER BY t.fullname)' : 'GROUP_CONCAT(t.fullname ORDER BY t.fullname)';
+    $st = db()->prepare("SELECT s.*, 
+        (SELECT COUNT(*) FROM users u WHERE u.section_id=s.id) AS student_count,
+        (SELECT $concatFn 
+         FROM section_teachers st 
+         JOIN users t ON t.id=st.teacher_id 
+         WHERE st.section_id=s.id) AS teacher_names
         FROM sections s 
         LEFT JOIN section_teachers st ON st.section_id=s.id
-        LEFT JOIN users t ON t.id=st.teacher_id
         WHERE st.teacher_id IS NULL OR st.teacher_id=?
-        GROUP BY s.id
         ORDER BY s.name");
     $st->execute([$teacher_id]);
     return $st->fetchAll();
