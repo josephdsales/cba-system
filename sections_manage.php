@@ -111,8 +111,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     set_flash($is_admin_page ? 'Section added.' : 'Section added (assigned to you).');
                 }
             } catch (PDOException $ex) { 
-    set_flash('Error: ' . $ex->getMessage()); 
-}
+                set_flash('Error: ' . $ex->getMessage()); 
+            }
         }
         header("Location: $back"); exit;
     }
