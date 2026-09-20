@@ -295,7 +295,22 @@ $this_page = $is_admin_page ? 'admin_sections.php' : 'teacher_sections.php';
       var name = (s.fullname || '').toLowerCase();
       var gender = (s.gender || '').trim().toLowerCase();
       var username = (s.username || '').toLowerCase();
-      return name.includes(query) || gender.includes(query) || username.includes(query);
+      
+      // Exact gender matching (handle "male" not matching inside "female")
+      var genderMatch = false;
+      if (gender === query) {
+        genderMatch = true;
+      } else if (query === 'm' && (gender === 'male' || gender === 'm')) {
+        genderMatch = true;
+      } else if (query === 'f' && (gender === 'female' || gender === 'f')) {
+        genderMatch = true;
+      } else if (query === 'male' && gender === 'male') {
+        genderMatch = true;
+      } else if (query === 'female' && gender === 'female') {
+        genderMatch = true;
+      }
+      
+      return name.includes(query) || genderMatch || username.includes(query);
     });
     renderStudents(filtered);
   }
