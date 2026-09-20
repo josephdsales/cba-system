@@ -82,9 +82,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             
                             // Update teacher assignments (admin only)
                             if ($is_admin_page) {
+                                // Driver-aware upsert for section_teachers
+                                $ins_sql = (db_driver() === 'pgsql')
+                                    ? 'INSERT INTO section_teachers (section_id, teacher_id) VALUES (?, ?) ON CONFLICT DO NOTHING'
+                                    : 'INSERT IGNORE INTO section_teachers (section_id, teacher_id) VALUES (?, ?)';
                                 db()->prepare('DELETE FROM section_teachers WHERE section_id=?')->execute([$id]);
                                 if (!empty($assigned_teacher_ids)) {
-                                    $ins = db()->prepare('INSERT IGNORE INTO section_teachers (section_id, teacher_id) VALUES (?, ?)');
+                                    $ins = db()->prepare($ins_sql);
                                     foreach ($assigned_teacher_ids as $tid) {
                                         $ins->execute([$id, $tid]);
                                     }
@@ -98,15 +102,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $st->execute([$name, $desc ?: null, $me['id']]);
                         $id = (int)db()->lastInsertId();
                         
-                        // Assign teachers
+                        $ins_sql = (db_driver() === 'pgsql')
+                            ? 'INSERT INTO section_teachers (section_id, teacher_id) VALUES (?, ?) ON CONFLICT DO NOTHING'
+                            : 'INSERT IGNORE INTO section_teachers (section_id, teacher_id) VALUES (?, ?)';
                         if ($is_admin_page && !empty($assigned_teacher_ids)) {
-                            $ins = db()->prepare('INSERT IGNORE INTO section_teachers (section_id, teacher_id) VALUES (?, ?)');
+                            $ins = db()->prepare($ins_sql);
                             foreach ($assigned_teacher_ids as $tid) {
                                 $ins->execute([$id, $tid]);
                             }
                         } else {
                             // Teacher creates section - assign to themselves
-                            $ins = db()->prepare('INSERT IGNORE INTO section_teachers (section_id, teacher_id) VALUES (?, ?)');
+                            $ins = db()->prepare($ins_sql);
                             $ins->execute([$id, $me['id']]);
                         }
                         set_flash($is_admin_page ? 'Section added.' : 'Section added (assigned to you).');
