@@ -85,6 +85,26 @@ if ($shuffle) {
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     check_csrf();
+    
+    // Rate limiting: max 1 submit per 10 seconds per student
+    $rate_key = 'exam_submit_' . $user['id'] . '_' . $exam_id;
+    $last_submit = (int)($_SESSION[$rate_key] ?? 0);
+    if (time() - $last_submit < 10) {
+        set_flash('Please wait before submitting again.');
+        header('Location: student_take.php?exam_id=' . $exam_id); exit;
+    }
+    $_SESSION[$rate_key] = time();
+    
+    // Server-side timer enforcement
+    $elapsed = time() - $started;
+    $time_limit_seconds = $exam['time_limit_minutes'] * 60;
+    $grace_seconds = 30; // 30 second grace period for network latency
+    if ($elapsed > $time_limit_seconds + $grace_seconds) {
+        set_flash('Time limit exceeded. Your exam has been auto-submitted.');
+        header('Location: student_scores.php'); exit;
+    }
+    
+    check_csrf();
     $score = 0; $total = array_sum(array_column($questions, 'points'));
     $needs_grading = 0;
     $ins = db()->prepare('INSERT INTO answers (attempt_id, question_id, student_answer, is_correct, points_earned) VALUES (?, ?, ?, ?, ?)');

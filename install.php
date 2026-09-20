@@ -61,11 +61,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             try {
                 $st = db()->prepare('SELECT id, assigned_teacher_id FROM sections WHERE assigned_teacher_id IS NOT NULL');
                 $st->execute();
+                $ins_sql = (db_driver() === 'pgsql')
+                    ? 'INSERT INTO section_teachers (section_id, teacher_id) VALUES (?, ?) ON CONFLICT DO NOTHING'
+                    : 'INSERT IGNORE INTO section_teachers (section_id, teacher_id) VALUES (?, ?)';
+                $ins = db()->prepare($ins_sql);
                 while ($row = $st->fetch()) {
-                    $ins = db()->prepare('INSERT IGNORE INTO section_teachers (section_id, teacher_id) VALUES (?, ?)');
                     $ins->execute([$row['id'], $row['assigned_teacher_id']]);
                 }
             } catch (Throwable $e) { /* migration failed or no data */ }
+            // v5g upgrade: add composite index on attempts(exam_id, student_id)
+            try { db()->exec('CREATE INDEX idx_attempts_exam_student ON attempts(exam_id, student_id)'); } catch (Throwable $e) { /* exists */ }
             if (db_driver() === 'pgsql') {
                 try { db()->exec('ALTER TABLE questions DROP CONSTRAINT IF EXISTS questions_qtype_check'); } catch (Throwable $e) {}
                 try { db()->exec("ALTER TABLE questions ADD CONSTRAINT questions_qtype_check CHECK (qtype IN ('mcq','truefalse','identification','essay'))"); } catch (Throwable $e) {}
