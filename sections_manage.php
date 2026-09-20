@@ -106,6 +106,19 @@ if ($is_admin_page) {
 } else {
     $sections = visible_sections((int)$me['id']);
 }
+
+// Get students for each section for the modal
+$section_students = [];
+if ($sections) {
+    $section_ids = array_column($sections, 'id');
+    $placeholders = implode(',', array_fill(0, count($section_ids), '?'));
+    $st = db()->prepare("SELECT u.*, s.name AS section_name FROM users u LEFT JOIN sections s ON s.id=u.section_id WHERE u.role='student' AND u.section_id IN ($placeholders)");
+    $st->execute($section_ids);
+    $students = $st->fetchAll();
+    foreach ($students as $stu) {
+        $section_students[$stu['section_id']][] = $stu;
+    }
+}
 $title = 'Manage Sections';
 include __DIR__ . '/includes/header.php';
 $this_page = $is_admin_page ? 'admin_sections.php' : 'teacher_sections.php';
@@ -144,6 +157,7 @@ $this_page = $is_admin_page ? 'admin_sections.php' : 'teacher_sections.php';
     <td><?= $s['student_count'] ?></td>
     <td><?php if (can_edit_section($s, $me)): ?><div class="btnrow" style="margin:0">
       <a class="btn small ghost" href="<?= $this_page ?>?edit=<?= $s['id'] ?>">Edit</a>
+      <button type="button" class="btn small" onclick="openStudentsModal(<?= $s['id'] ?>)">👥 Students</button>
       <?php if ($is_admin_page): ?>
         <form method="post" style="display:inline" onsubmit="return confirm('Delete section <?= e($s['name']) ?>?')">
           <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
@@ -164,4 +178,62 @@ $this_page = $is_admin_page ? 'admin_sections.php' : 'teacher_sections.php';
   <?php endforeach; ?>
   <?php if (!$sections): ?><tr><td colspan="5" class="hint">No sections visible to you yet.</td></tr><?php endif; ?>
 </table></div></div>
+
+<div id="students-modal" class="modal" style="display:none">
+  <div class="modal-backdrop" onclick="closeStudentsModal()"></div>
+  <div class="modal-content card" style="max-width:800px;width:90%;max-height:80vh;overflow:auto" onclick="event.stopPropagation()">
+    <h3 style="margin-top:0" id="students-modal-title">👥 Students in Section</h3>
+    <div style="max-height:60vh;overflow:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:.85rem">
+        <thead style="position:sticky;top:0;background:var(--card);z-index:1">
+          <tr style="border-bottom:2px solid var(--line)">
+            <th style="text-align:left;padding:8px">Name</th>
+            <th style="text-align:center;padding:8px">Gender</th>
+            <th style="text-align:center;padding:8px">Username</th>
+            <th style="text-align:center;padding:8px">Registered</th>
+          </tr>
+        </thead>
+        <tbody id="students-modal-body">
+        </tbody>
+      </table>
+    </div>
+    <div class="btnrow" style="margin-top:12px">
+      <button class="btn ghost" onclick="closeStudentsModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var studentsBySection = <?= json_encode($section_students) ?>;
+  var modal = document.getElementById('students-modal');
+  var title = document.getElementById('students-modal-title');
+  var tbody = document.getElementById('students-modal-body');
+
+  window.openStudentsModal = function (sectionId) {
+    var students = studentsBySection[sectionId] || [];
+    var section = students[0]?.section_name || 'Section';
+    title.textContent = '👥 Students in ' + section;
+    tbody.innerHTML = students.map(function (s) {
+      return '<tr style="border-bottom:1px solid var(--line)">' +
+        '<td style="padding:8px">' + (s.fullname || '') + '</td>' +
+        '<td style="text-align:center;padding:8px">' + (s.gender || '') + '</td>' +
+        '<td style="text-align:center;padding:8px">' + (s.username || '') + '</td>' +
+        '<td style="text-align:center;padding:8px">' + (s.created_at ? new Date(s.created_at).toLocaleDateString() : '') + '</td>' +
+      '</tr>';
+    }).join('') || '<tr><td colspan="4" class="hint" style="padding:16px;text-align:center">No students in this section</td></tr>';
+    modal.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+  };
+  window.closeStudentsModal = function () {
+    modal.style.display = 'none';
+    document.body.style.overflow = '';
+  };
+})();
+</script>
+<style>
+.modal { position:fixed; top:0; left:0; right:0; bottom:0; z-index:100; display:flex; align-items:center; justify-content:center; padding:20px; }
+.modal-backdrop { position:absolute; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,.5); }
+.modal-content { position:relative; background:var(--card); border-radius:var(--radius); box-shadow:0 20px 40px rgba(0,0,0,.2); }
+</style>
 <?php include __DIR__ . '/includes/footer.php'; ?>
