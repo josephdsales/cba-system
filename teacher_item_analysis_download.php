@@ -15,6 +15,24 @@ $st = db()->prepare('SELECT fullname FROM users WHERE id=?');
 $st->execute([$user['id']]);
 $teacher = $st->fetch();
 
+// Determine section info
+$section_name = 'All Sections';
+if (!empty($exam['section_id'])) {
+    $st = db()->prepare('SELECT name FROM sections WHERE id=?');
+    $st->execute([$exam['section_id']]);
+    $sec = $st->fetch();
+    $section_name = $sec['name'] ?? 'All Sections';
+} elseif ($best_rows) {
+    // Check if all students are from same section
+    $sections = array_unique(array_column($best_rows, 'section_name'));
+    $sections = array_filter($sections);
+    if (count($sections) === 1) {
+        $section_name = reset($sections);
+    } else {
+        $section_name = 'Multiple Sections';
+    }
+}
+
 // Get best attempt per student for this exam
 $st = db()->prepare("SELECT a.*, u.fullname, u.username, u.gender, u.lastname, u.firstname, s.name AS section_name
     FROM attempts a
@@ -83,7 +101,7 @@ $out = fopen('php://output', 'w');
 fwrite($out, "\xEF\xBB\xBF");
 
 // Metadata rows
-fputcsv($out, ['Section:', 'All Sections']);
+fputcsv($out, ['Section:', $section_name]);
 fputcsv($out, ['Exam Name:', $exam['title']]);
 fputcsv($out, ['Teacher Name:', $teacher['fullname'] ?? $user['fullname']]);
 fputcsv($out, ['Date Generated:', date('Y-m-d H:i:s')]);
