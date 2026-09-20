@@ -45,6 +45,7 @@ if (isset($_GET['edit'])) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     check_csrf();
     $back = $is_admin_page ? 'admin_sections.php' : 'teacher_sections.php';
+    
     if (($_POST['action'] ?? '') === 'save') {
         $id = (int)($_POST['id'] ?? 0);
         $name = trim($_POST['name'] ?? '');
@@ -70,66 +71,68 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 set_flash('Section name already exists: "' . $existing['name'] . '" (ID: ' . $existing['id'] . '). Please choose a different name.');
             } else {
                 try {
-                if ($id > 0) {
-                    $st = db()->prepare('SELECT * FROM sections WHERE id=?');
-                    $st->execute([$id]); $cur = $st->fetch();
-                    if (!$cur || !can_edit_section($cur, $me, $section_teachers)) {
-                        set_flash('Not allowed to edit this section.');
-                    } else {
-                        $st = db()->prepare('UPDATE sections SET name=?, description=? WHERE id=?');
-                        $st->execute([$name, $desc ?: null, $id]);
-                        
-                        // Update teacher assignments (admin only)
-                        if ($is_admin_page) {
-                            db()->prepare('DELETE FROM section_teachers WHERE section_id=?')->execute([$id]);
-                            if (!empty($assigned_teacher_ids)) {
-                                $ins = db()->prepare('INSERT IGNORE INTO section_teachers (section_id, teacher_id) VALUES (?, ?)');
-                                foreach ($assigned_teacher_ids as $tid) {
-                                    $ins->execute([$id, $tid]);
+                    if ($id > 0) {
+                        $st = db()->prepare('SELECT * FROM sections WHERE id=?');
+                        $st->execute([$id]); $cur = $st->fetch();
+                        if (!$cur || !can_edit_section($cur, $me, $section_teachers)) {
+                            set_flash('Not allowed to edit this section.');
+                        } else {
+                            $st = db()->prepare('UPDATE sections SET name=?, description=? WHERE id=?');
+                            $st->execute([$name, $desc ?: null, $id]);
+                            
+                            // Update teacher assignments (admin only)
+                            if ($is_admin_page) {
+                                db()->prepare('DELETE FROM section_teachers WHERE section_id=?')->execute([$id]);
+                                if (!empty($assigned_teacher_ids)) {
+                                    $ins = db()->prepare('INSERT IGNORE INTO section_teachers (section_id, teacher_id) VALUES (?, ?)');
+                                    foreach ($assigned_teacher_ids as $tid) {
+                                        $ins->execute([$id, $tid]);
+                                    }
                                 }
                             }
-                        }
-                        set_flash('Section updated.');
-                    }
-                } else {
-                    // New section - creator is always assigned
-                    $st = db()->prepare('INSERT INTO sections (name, description, created_by) VALUES (?, ?, ?)');
-                    $st->execute([$name, $desc ?: null, $me['id']]);
-                    $id = (int)db()->lastInsertId();
-                    
-                    // Assign teachers
-                    if ($is_admin_page && !empty($assigned_teacher_ids)) {
-                        $ins = db()->prepare('INSERT IGNORE INTO section_teachers (section_id, teacher_id) VALUES (?, ?)');
-                        foreach ($assigned_teacher_ids as $tid) {
-                            $ins->execute([$id, $tid]);
+                            set_flash('Section updated.');
                         }
                     } else {
-                        // Teacher creates section - assign to themselves
-                        $ins = db()->prepare('INSERT IGNORE INTO section_teachers (section_id, teacher_id) VALUES (?, ?)');
-                        $ins->execute([$id, $me['id']]);
+                        // New section - creator is always assigned
+                        $st = db()->prepare('INSERT INTO sections (name, description, created_by) VALUES (?, ?, ?)');
+                        $st->execute([$name, $desc ?: null, $me['id']]);
+                        $id = (int)db()->lastInsertId();
+                        
+                        // Assign teachers
+                        if ($is_admin_page && !empty($assigned_teacher_ids)) {
+                            $ins = db()->prepare('INSERT IGNORE INTO section_teachers (section_id, teacher_id) VALUES (?, ?)');
+                            foreach ($assigned_teacher_ids as $tid) {
+                                $ins->execute([$id, $tid]);
+                            }
+                        } else {
+                            // Teacher creates section - assign to themselves
+                            $ins = db()->prepare('INSERT IGNORE INTO section_teachers (section_id, teacher_id) VALUES (?, ?)');
+                            $ins->execute([$id, $me['id']]);
+                        }
+                        set_flash($is_admin_page ? 'Section added.' : 'Section added (assigned to you).');
                     }
-                    set_flash($is_admin_page ? 'Section added.' : 'Section added (assigned to you).');
+                } catch (PDOException $ex) { 
+                    set_flash('Error: ' . $ex->getMessage()); 
                 }
-            } catch (PDOException $ex) { 
-                set_flash('Error: ' . $ex->getMessage()); 
             }
         }
-        header("Location: $back"); exit;
-    }
-    
-    if (($_POST['action'] ?? '') === 'delete') {
-        $id = (int)$_POST['id'];
-        $st = db()->prepare('SELECT * FROM sections WHERE id=?');
-        $st->execute([$id]); $cur = $st->fetch();
-        if (!$cur || !can_delete_section($cur, $me)) {
-            set_flash('Not allowed to delete this section.');
-        } else {
-            try {
-                $st = db()->prepare('DELETE FROM sections WHERE id=?');
-                $st->execute([$id]);
-                set_flash('Section deleted.');
-            } catch (PDOException $ex) { set_flash('Cannot delete: section is in use by students/exams.'); }
+        
+        if (($_POST['action'] ?? '') === 'delete') {
+            $id = (int)$_POST['id'];
+            $st = db()->prepare('SELECT * FROM sections WHERE id=?');
+            $st->execute([$id]); $cur = $st->fetch();
+            if (!$cur || !can_delete_section($cur, $me)) {
+                set_flash('Not allowed to delete this section.');
+            } else {
+                try {
+                    $st = db()->prepare('DELETE FROM sections WHERE id=?');
+                    $st->execute([$id]);
+                    set_flash('Section deleted.');
+                } catch (PDOException $ex) { set_flash('Cannot delete: section is in use by students/exams.'); }
+            }
+            header("Location: $back"); exit;
         }
+        
         header("Location: $back"); exit;
     }
 }
