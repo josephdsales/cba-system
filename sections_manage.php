@@ -30,6 +30,18 @@ function can_edit_section(array $s, array $me, array $section_teachers): bool {
     return isset($section_teachers[$sid]) && in_array($me['id'], $section_teachers[$sid]);
 }
 
+// Check if teacher can view students in a section (assigned OR shared)
+function can_view_students(array $s, array $me, array $section_teachers): bool {
+    if ($me['role'] === 'admin') return true;
+    $sid = $s['id'];
+    // Assigned teacher
+    if (isset($section_teachers[$sid]) && in_array($me['id'], $section_teachers[$sid])) return true;
+    // Shared section (no teachers assigned = visible to all teachers)
+    $st = db()->prepare('SELECT 1 FROM section_teachers WHERE section_id=?');
+    $st->execute([$sid]);
+    return !$st->fetch();
+}
+
 // Check if teacher can delete (admin only)
 function can_delete_section(array $s, array $me): bool {
     return $me['role'] === 'admin';
@@ -209,7 +221,7 @@ $this_page = $is_admin_page ? 'admin_sections.php' : 'teacher_sections.php';
     <td><b><?= e($s['name']) ?></b></td><td><?= e($s['description'] ?? '') ?></td>
     <td><?= e($s['teacher_names'] ?? 'Shared (all)') ?></td>
     <td><?= $s['student_count'] ?></td>
-    <td><?php if (can_edit_section($s, $me, $section_teachers)): ?><div class="btnrow" style="margin:0">
+    <td><?php if (can_view_students($s, $me, $section_teachers)): ?><div class="btnrow" style="margin:0">
       <a class="btn small ghost" href="<?= $this_page ?>?edit=<?= $s['id'] ?>">Edit</a>
       <button type="button" class="btn small" onclick="openStudentsModal(<?= $s['id'] ?>)">👥 Students</button>
       <?php if ($is_admin_page): ?>
