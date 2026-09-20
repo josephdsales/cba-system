@@ -285,7 +285,7 @@ $this_page = $is_admin_page ? 'admin_sections.php' : 'teacher_sections.php';
     document.body.style.overflow = 'hidden';
   };
 
-  function filterStudents() {
+function filterStudents() {
     var query = searchInput.value.toLowerCase().trim();
     if (!query) {
       renderStudents(currentStudents);
@@ -296,22 +296,35 @@ $this_page = $is_admin_page ? 'admin_sections.php' : 'teacher_sections.php';
       var gender = (s.gender || '').trim().toLowerCase();
       var username = (s.username || '').toLowerCase();
       
+      // Name matching: prefix match (min 2 chars) OR exact match
+      var nameMatch = false;
+      if (name === query) {
+        nameMatch = true;
+      } else if (query.length >= 2 && name.startsWith(query)) {
+        nameMatch = true;
+      }
+      
       // Gender matching: exact match OR prefix match (min 2 chars) but avoid "male" in "female"
       var genderMatch = false;
       if (gender === query) {
         genderMatch = true;
       } else if (query.length >= 2) {
-        // Prefix match for gender (e.g., "fe" matches "female", "ma" matches "male")
-        // But ensure "male" doesn't match "female" by checking full word boundaries
         if (gender.startsWith(query)) {
-          // Additional check: if query is "male" or starts with "male", don't match "female"
           if (!(query.startsWith('male') && gender === 'female')) {
             genderMatch = true;
           }
         }
       }
       
-      return name.includes(query) || genderMatch || username.includes(query);
+      // Username matching: prefix match (min 2 chars) OR exact match
+      var usernameMatch = false;
+      if (username === query) {
+        usernameMatch = true;
+      } else if (query.length >= 2 && username.startsWith(query)) {
+        usernameMatch = true;
+      }
+      
+      return nameMatch || genderMatch || usernameMatch;
     });
     renderStudents(filtered);
   }
