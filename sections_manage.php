@@ -62,7 +62,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($name === '') {
             set_flash('Section name is required.');
         } else {
-            try {
+            // Check if name already exists (for new or renamed sections) - case insensitive
+            $check = db()->prepare('SELECT id, name FROM sections WHERE LOWER(name)=LOWER(?) AND id!=?');
+            $check->execute([$name, $id]);
+            $existing = $check->fetch();
+            if ($existing) {
+                set_flash('Section name already exists: "' . $existing['name'] . '" (ID: ' . $existing['id'] . '). Please choose a different name.');
+            } else {
+                try {
                 if ($id > 0) {
                     $st = db()->prepare('SELECT * FROM sections WHERE id=?');
                     $st->execute([$id]); $cur = $st->fetch();
@@ -103,7 +110,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                     set_flash($is_admin_page ? 'Section added.' : 'Section added (assigned to you).');
                 }
-            } catch (PDOException $ex) { set_flash('Error: section name already exists.'); }
+            } catch (PDOException $ex) { 
+    set_flash('Error: ' . $ex->getMessage()); 
+}
         }
         header("Location: $back"); exit;
     }
