@@ -324,6 +324,7 @@ $this_page = $is_admin_page ? 'admin_sections.php' : 'teacher_sections.php';
     modal.style.display = 'none';
     document.body.style.overflow = '';
   };
+searchInput.addEventListener('input', filterStudents);
 })();
 </script>
 <style>
