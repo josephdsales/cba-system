@@ -20,33 +20,11 @@ $attempt = $st->fetch();
 $allow_retake = !empty($exam['allow_retake']);
 $shuffle = !empty($exam['shuffle_questions']);
 
-// Check if this exam was assigned via remedial and student already has a submitted attempt
-$is_remedial = false;
-if ($allow_retake) {
-    $st = db()->prepare('SELECT 1 FROM exam_students WHERE exam_id=? AND student_id=?');
-    $st->execute([$exam_id, $user['id']]);
-    if ($st->fetch()) {
-        $is_remedial = true;
-        // Check if student already has a submitted attempt on this remedial exam
-        $st = db()->prepare('SELECT 1 FROM attempts WHERE exam_id=? AND student_id=? AND submitted_at IS NOT NULL');
-        $st->execute([$exam_id, $user['id']]);
-        if ($st->fetch()) {
-            set_flash('You have already taken this remedial exam. Only one attempt allowed.'); 
-            header('Location: student_scores.php'); exit;
-        }
-    }
-}
-
 if ($attempt && $attempt['submitted_at'] !== null) {
     if (!$allow_retake) {
         set_flash('You already submitted this exam.'); header('Location: student_scores.php'); exit;
     }
-    // If remedial and already attempted, we already blocked above
-    if ($is_remedial) {
-        set_flash('You have already taken this remedial exam. Only one attempt allowed.'); 
-        header('Location: student_scores.php'); exit;
-    }
-    // retake allowed: create NEW attempt, keep old one intact
+    // Retake allowed: create NEW attempt, keep old one intact
     $total = array_sum(array_column($questions, 'points'));
     $seed = $shuffle ? mt_rand(1, 2147483647) : null;
     $st = db()->prepare('INSERT INTO attempts (exam_id, student_id, total, shuffle_seed) VALUES (?, ?, ?, ?)');
