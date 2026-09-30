@@ -10,6 +10,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $back = 'admin_students.php';
     $qs = [];
     if (!empty($_GET['q'])) $qs['q'] = $_GET['q'];
+    if (!empty($_GET['section'])) $qs['section'] = $_GET['section'];
     if (!empty($_GET['sort'])) $qs['sort'] = $_GET['sort'];
     if (!empty($_GET['dir'])) $qs['dir'] = $_GET['dir'];
     if ($action === 'save' && !empty($_POST['id'])) $qs['scrollto'] = $_POST['id'];
