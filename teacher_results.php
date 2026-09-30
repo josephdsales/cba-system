@@ -219,7 +219,7 @@ if ($sel && $best_rows) {
                 $st2->execute([$sel, $r['id']]);
                 $distractors = [];
                 foreach ($st2->fetchAll() as $d) {
-                    $ans = $d['student_answer'];
+                    $ans = $d['student_answer'] ?? '';
                     $distractors[strtoupper(substr($ans, 0, 1))] = [
                         'count' => (int)$d['cnt'],
                         'pct' => round($d['cnt'] / $tries * 100, 1),
