@@ -99,3 +99,12 @@ CREATE TABLE IF NOT EXISTS answers (
 INSERT INTO sections (id, name, description) VALUES (1, 'BSIT-1A', 'Default section')
 ON CONFLICT (id) DO NOTHING;
 SELECT setval(pg_get_serial_sequence('sections','id'), GREATEST((SELECT MAX(id) FROM sections), 1));
+
+-- Database-backed sessions (survives Render free-tier spin-down)
+CREATE TABLE IF NOT EXISTS sessions (
+  id VARCHAR(128) PRIMARY KEY,
+  user_id INT NULL,
+  data TEXT NOT NULL,
+  last_activity INT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_sessions_last_activity ON sessions (last_activity);
