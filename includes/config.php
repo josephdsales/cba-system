@@ -91,3 +91,66 @@ function base_url(string $path = ''): string {
 function e($v): string {
     return htmlspecialchars((string)($v ?? ''), ENT_QUOTES, 'UTF-8');
 }
+
+// =============================================
+// Database-backed session handler
+// Survives Render free-tier spin-down (ephemeral filesystem wiped on sleep)
+// =============================================
+class DBSessionHandler implements SessionHandlerInterface {
+    private $pdo;
+
+    public function __construct(PDO $pdo) {
+        $this->pdo = $pdo;
+    }
+
+    public function open($path, $name): bool { return true; }
+    public function close(): bool { return true; }
+
+    public function read($id): string {
+        $st = $this->pdo->prepare('SELECT data FROM sessions WHERE id = ?');
+        $st->execute([$id]);
+        $row = $st->fetch();
+        return $row ? $row['data'] : '';
+    }
+
+    public function write($id, $data): bool {
+        $now = time();
+        $user_id = $_SESSION['user']['id'] ?? null;
+        $st = $this->pdo->prepare(
+            'INSERT INTO sessions (id, user_id, data, last_activity) VALUES (?, ?, ?, ?)
+             ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, last_activity = EXCLUDED.last_activity, user_id = EXCLUDED.user_id'
+        );
+        // Use the appropriate UPSERT syntax for MySQL
+        if ($this->pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql') {
+            $st = $this->pdo->prepare(
+                'INSERT INTO sessions (id, user_id, data, last_activity) VALUES (?, ?, ?, ?)
+                 ON DUPLICATE KEY UPDATE data = VALUES(data), last_activity = VALUES(last_activity), user_id = VALUES(user_id)'
+            );
+        }
+        return $st->execute([$id, $user_id, $data, $now]);
+    }
+
+    public function destroy($id): bool {
+        $st = $this->pdo->prepare('DELETE FROM sessions WHERE id = ?');
+        return $st->execute([$id]);
+    }
+
+    public function gc($max_lifetime): int|false {
+        $cutoff = time() - $max_lifetime;
+        $st = $this->pdo->prepare('DELETE FROM sessions WHERE last_activity < ?');
+        $st->execute([$cutoff]);
+        return $st->rowCount();
+    }
+}
+
+// Try to use database sessions; fall back to file-based if sessions table missing
+try {
+    $test = db()->query("SELECT 1 FROM sessions LIMIT 1");
+    $handler = new DBSessionHandler(db());
+    session_set_save_handler($handler, true);
+} catch (PDOException $e) {
+    // Sessions table doesn't exist yet (install.php hasn't run) — use default file sessions
+}
+
+// Start session (after handler is registered)
+if (session_status() === PHP_SESSION_NONE) session_start();
