@@ -28,7 +28,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $u = $st->fetch();
             if ($u && password_verify($password, $u['password_hash'])) {
                 unset($u['password_hash']);
-                session_regenerate_id(true);
+                session_regenerate_id(false);
                 $_SESSION['user'] = $u;
                 unset($_SESSION['login_fail_' . $ip]); // Clear fail count on success
                 header('Location: dashboard.php'); exit;

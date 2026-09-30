@@ -72,7 +72,23 @@ if ($attempt && $attempt['submitted_at'] !== null) {
 }
 
 $elapsed = time() - $started;
-$remain = max(1, $exam['time_limit_minutes'] * 60 - $elapsed);
+$time_limit_seconds = $exam['time_limit_minutes'] * 60;
+$remain = max(0, $time_limit_seconds - $elapsed);
+
+// Auto-submit if time expired (server-side)
+if ($elapsed >= $time_limit_seconds && empty($attempt['submitted_at'])) {
+    // Auto-submit with empty answers
+    $score = 0; $total = array_sum(array_column($questions, 'points'));
+    $needs_grading = 0;
+    $ins = db()->prepare('INSERT INTO answers (attempt_id, question_id, student_answer, is_correct, points_earned) VALUES (?, ?, ?, ?, ?)');
+    foreach ($questions as $q) {
+        $ins->execute([$attempt_id, $q['id'], null, 0, 0]);
+    }
+    $st = db()->prepare('UPDATE attempts SET score=?, total=?, percentage=?, submitted_at=NOW(), needs_grading=? WHERE id=?');
+    $st->execute([0, $total, 0, 0, $attempt_id]);
+    set_flash('Time limit exceeded. Your exam has been auto-submitted.');
+    header('Location: student_scores.php'); exit;
+}
 
 if ($shuffle) {
     // Use the current attempt's shuffle_seed (new attempt for retakes)
@@ -81,6 +97,11 @@ if ($shuffle) {
     $seed = $current_attempt->fetchColumn() ?? mt_rand(1, 2147483647);
     mt_srand($seed);
     shuffle($questions);
+}
+
+// Keep session alive during exam
+if (session_status() === PHP_SESSION_ACTIVE) {
+    $_SESSION['last_activity'] = time();
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -95,16 +116,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     $_SESSION[$rate_key] = time();
     
-    // Server-side timer enforcement
+    // Check if time exceeded (still save answers — don't throw away student work)
     $elapsed = time() - $started;
     $time_limit_seconds = $exam['time_limit_minutes'] * 60;
-    $grace_seconds = 30; // 30 second grace period for network latency
-    if ($elapsed > $time_limit_seconds + $grace_seconds) {
-        set_flash('Time limit exceeded. Your exam has been auto-submitted.');
-        header('Location: student_scores.php'); exit;
-    }
+    $late = $elapsed > $time_limit_seconds;
     
-    check_csrf();
     $score = 0; $total = array_sum(array_column($questions, 'points'));
     $needs_grading = 0;
     $ins = db()->prepare('INSERT INTO answers (attempt_id, question_id, student_answer, is_correct, points_earned) VALUES (?, ?, ?, ?, ?)');
@@ -131,8 +147,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $pct = $total > 0 ? round($score / $total * 100, 2) : 0;
     $st = db()->prepare('UPDATE attempts SET score=?, total=?, percentage=?, submitted_at=NOW(), needs_grading=? WHERE id=?');
     $st->execute([$score, $total, $pct, $needs_grading, $attempt_id]);
-    set_flash($needs_grading ? "Exam submitted. Partial score: $score/$total — essay answers are for checking."
-        : "Exam submitted. Your score: $score/$total ($pct%).");
+    if ($late) {
+        set_flash("Exam submitted (late). Your score: $score/$total ($pct%).");
+    } else {
+        set_flash($needs_grading ? "Exam submitted. Partial score: $score/$total — essay answers are for checking."
+            : "Exam submitted. Your score: $score/$total ($pct%).");
+    }
     header('Location: student_scores.php'); exit;
 }
 
@@ -168,4 +188,12 @@ include __DIR__ . '/includes/header.php';
   <?php endforeach; ?>
   <div class="card"><button class="btn ok" type="submit" onclick="return confirm('Submit your answers now?')">Submit Exam</button></div>
 </form>
+<script>
+// Session heartbeat: ping server every 5 min to prevent session timeout during exam
+(function() {
+  setInterval(function() {
+    fetch(window.location.href, { method: 'HEAD', credentials: 'same-origin' });
+  }, 300000);
+})();
+</script>
 <?php include __DIR__ . '/includes/footer.php'; ?>

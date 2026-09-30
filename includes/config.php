@@ -12,6 +12,23 @@
 define('APP_NAME', 'Computer-Based Assessment');
 define('BASE_URL', ''); // leave empty = auto-detect. e.g. 'https://yourschool.com/cba'
 
+// Set default timezone
+date_default_timezone_set('Asia/Manila'); // Change to your timezone
+
+// Session configuration — critical for Render (reverse proxy + ephemeral filesystem)
+ini_set('session.gc_maxlifetime', 14400);       // 4 hours server-side
+ini_set('session.cookie_lifetime', 14400);      // 4 hours cookie
+ini_set('session.use_strict_mode', 1);          // Reject uninitialized session IDs
+ini_set('session.use_only_cookies', 1);         // No session ID in URL
+ini_set('session.cookie_httponly', 1);          // Prevent JS access to cookie
+ini_set('session.cookie_samesite', 'Lax');      // Allow same-site redirects
+session_set_cookie_params([
+    'lifetime' => 14400,
+    'path' => '/',
+    'httponly' => true,
+    'samesite' => 'Lax',
+]);
+
 function db_driver(): string {
     if (getenv('DATABASE_URL')) return 'pgsql';
     return 'mysql';
@@ -35,6 +52,10 @@ function db(): PDO {
                 PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
                 PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
             ]);
+            // Sync DB timezone with PHP timezone
+            $tz_offset = date('Z') / 3600;
+            $tz_str = ($tz_offset >= 0 ? '+' : '') . $tz_offset . ':00';
+            $pdo->exec("SET TIME ZONE INTERVAL '$tz_str' HOUR TO MINUTE");
         } else {
             $host = getenv('DB_HOST') ?: 'localhost';
             $name = getenv('DB_NAME') ?: 'cba_system';
@@ -45,6 +66,10 @@ function db(): PDO {
                 PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
                 PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
             ]);
+            // Sync DB timezone with PHP timezone
+            $tz_offset = date('Z') / 3600;
+            $tz_str = ($tz_offset >= 0 ? '+' : '') . $tz_offset . ':00';
+            $pdo->exec("SET time_zone = '$tz_str'");
         }
     }
     return $pdo;

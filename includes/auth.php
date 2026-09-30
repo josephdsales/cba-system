@@ -53,8 +53,9 @@ function check_csrf(): void {
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $t = $_POST['csrf'] ?? '';
         if (!hash_equals($_SESSION['csrf'] ?? '', $t)) {
-            http_response_code(419);
-            exit('Invalid request token. Go back and try again.');
+            set_flash('Session expired. Please try again.');
+            header('Location: ' . ($_SERVER['HTTP_REFERER'] ?? 'index.php'));
+            exit;
         }
     }
 }
