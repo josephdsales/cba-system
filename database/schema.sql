@@ -128,3 +128,12 @@ CREATE TABLE IF NOT EXISTS answers (
 -- (it hashes the password correctly with password_hash()).
 INSERT IGNORE INTO sections (id, name, description) VALUES
   (1, 'BSIT-1A', 'Default section');
+
+-- Database-backed sessions (survives server restarts / spin-downs)
+CREATE TABLE IF NOT EXISTS sessions (
+  id VARCHAR(128) NOT NULL PRIMARY KEY,
+  user_id INT NULL,
+  data TEXT NOT NULL,
+  last_activity INT NOT NULL,
+  INDEX idx_sessions_last_activity (last_activity)
+) ENGINE=InnoDB;
