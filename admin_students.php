@@ -5,6 +5,15 @@ $user = require_role('admin');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     check_csrf();
+    // Preserve current page state for redirect back
+    $back = 'admin_students.php';
+    $qs = [];
+    if (!empty($_GET['q'])) $qs['q'] = $_GET['q'];
+    if (!empty($_GET['sort'])) $qs['sort'] = $_GET['sort'];
+    if (!empty($_GET['dir'])) $qs['dir'] = $_GET['dir'];
+    if ($action === 'save' && !empty($_POST['id'])) $qs['scrollto'] = $_POST['id'];
+    if ($qs) $back .= '?' . http_build_query($qs);
+
     $action = $_POST['action'] ?? '';
     if ($action === 'save') {
         $id = (int)($_POST['id'] ?? 0);
@@ -26,7 +35,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 set_flash('Student details updated.');
             } catch (PDOException $ex) { set_flash('Save failed: ' . $ex->getMessage()); }
         }
-        header('Location: admin_students.php'); exit;
+        header('Location: ' . $back); exit;
     }
     if ($action === 'reset') {
         $new = $_POST['new_password'] ?? '';
@@ -41,7 +50,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $st->execute([(int)$_POST['id']]);
         set_flash('Student deleted.');
     }
-    header('Location: admin_students.php'); exit;
+    header('Location: ' . $back); exit;
 }
 
 $q = trim($_GET['q'] ?? '');
@@ -125,7 +134,7 @@ function sort_link($label, $key) {
     <input type="text" name="username" required value="<?= e($edit['username']) ?>">
     <p class="hint">Password: use Reset PW below to change it.</p>
     <div class="btnrow"><button class="btn" type="submit">Save changes</button>
-    <a class="btn ghost" href="admin_students.php">Cancel</a></div>
+    <a class="btn ghost" href="admin_students.php<?= $q !== '' ? '?q=' . urlencode($q) : '' ?><?= $sort !== 'name' ? ($q !== '' ? '&' : '?') . 'sort=' . $sort : '' ?><?= $sdir !== 'asc' ? '&dir=' . $sdir : '' ?>">Cancel</a></div>
   </form>
 </div>
 <?php endif; ?>
@@ -148,12 +157,12 @@ function sort_link($label, $key) {
   </thead>
   <tbody id="students-tbody">
     <?php foreach ($students as $s): ?>
-    <tr>
+    <tr id="student-<?= $s['id'] ?>">
       <td><?= e($s['fullname']) ?></td><td><?= e($s['gender']) ?></td>
       <td><?= e($s['section_name'] ?? '—') ?></td><td><?= e($s['username']) ?></td>
       <td>
         <div class="btnrow" style="margin:0">
-          <a class="btn small ghost" href="admin_students.php?edit=<?= $s['id'] ?>">Edit</a>
+          <a class="btn small ghost" href="admin_students.php?edit=<?= $s['id'] ?><?= $q !== '' ? '&q=' . urlencode($q) : '' ?><?= $sort !== 'name' ? '&sort=' . $sort : '' ?><?= $sdir !== 'asc' ? '&dir=' . $sdir : '' ?>">Edit</a>
           <form method="post" style="display:inline" onsubmit="return confirm('Reset password for <?= e($s['username']) ?>?')">
             <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
             <input type="hidden" name="action" value="reset"><input type="hidden" name="id" value="<?= $s['id'] ?>">
@@ -199,6 +208,21 @@ function sort_link($label, $key) {
         doSearch(input.value);
       }, 300);
     });
+  }
+})();
+</script>
+<script>
+// Scroll to edited student row
+(function () {
+  var params = new URLSearchParams(window.location.search);
+  var scrollTo = params.get('scrollto');
+  if (scrollTo) {
+    var row = document.getElementById('student-' + scrollTo);
+    if (row) {
+      row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      row.style.background = 'var(--warn-bg, #fef3cd)';
+      setTimeout(function () { row.style.background = ''; }, 2000);
+    }
   }
 })();
 </script>
