@@ -54,6 +54,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $q = trim($_GET['q'] ?? '');
+$section_filter = trim($_GET['section'] ?? '');
 $sort = $_GET['sort'] ?? 'name';
 if (!in_array($sort, ['name', 'gender', 'section', 'username', 'created'], true)) $sort = 'name';
 $sdir = ($_GET['dir'] ?? 'asc') === 'asc' ? 'asc' : 'desc';
@@ -69,12 +70,14 @@ $order_sql = $order_map[$sort] . ' ' . strtoupper($sdir);
 
 $where = "u.role='student'";
 $params = [];
+$likeOp = (db_driver() === 'pgsql') ? 'ILIKE' : 'LIKE';
 if ($q !== '') {
-    // Search fullname, username, section, gender, and individual name parts
-    // Use ILIKE for PostgreSQL (case-insensitive), LIKE for MySQL
-    $likeOp = (db_driver() === 'pgsql') ? 'ILIKE' : 'LIKE';
-    $where .= " AND (u.fullname $likeOp ? OR u.username $likeOp ? OR s.name $likeOp ? OR LOWER(u.gender) = LOWER(?) OR COALESCE(u.lastname, '') $likeOp ? OR COALESCE(u.firstname, '') $likeOp ?)";
-    $params = ["%$q%", "%$q%", "%$q%", $q, "%$q%", "%$q%"];
+    $where .= " AND (u.fullname $likeOp ? OR u.username $likeOp ? OR LOWER(u.gender) = LOWER(?) OR COALESCE(u.lastname, '') $likeOp ? OR COALESCE(u.firstname, '') $likeOp ?)";
+    $params = ["%$q%", "%$q%", $q, "%$q%", "%$q%"];
+}
+if ($section_filter !== '') {
+    $where .= " AND s.name $likeOp ?";
+    $params[] = "%$section_filter%";
 }
 
 $st = db()->prepare("SELECT u.*, s.name AS section_name FROM users u LEFT JOIN sections s ON s.id=u.section_id
@@ -139,10 +142,15 @@ function sort_link($label, $key) {
 </div>
 <?php endif; ?>
 <div class="card">
-  <form method="get" id="search-form" style="display:flex;gap:8px;flex-wrap:wrap">
-    <input type="text" name="q" id="search-input" placeholder="Search name, username, section, gender..." value="<?= e($q) ?>" style="flex:1;min-width:200px" autocomplete="off">
-    <button class="btn" type="submit">Search</button>
-  </form>
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <input type="text" id="search-input" placeholder="Search name, username, gender..." value="<?= e($q) ?>" style="flex:1;min-width:200px" autocomplete="off">
+    <select id="section-filter" style="min-width:150px">
+      <option value="">All Sections</option>
+      <?php foreach ($sections as $sec): ?>
+        <option value="<?= e($sec['name']) ?>" <?= ($section_filter === $sec['name']) ? 'selected' : '' ?>><?= e($sec['name']) ?></option>
+      <?php endforeach; ?>
+    </select>
+  </div>
   <p class="hint">Total: <span id="student-count"><?= count($students) ?></span> student(s). Admin can reset any student password or delete accounts.</p>
 </div>
 <div class="card"><div class="table-wrap"><table id="students-table">
@@ -184,14 +192,15 @@ function sort_link($label, $key) {
 <script>
 (function () {
   var input = document.getElementById('search-input');
+  var sectionFilter = document.getElementById('section-filter');
   var tbody = document.getElementById('students-tbody');
   var countEl = document.getElementById('student-count');
   var debounceTimer;
 
-  function doSearch(q) {
-    var params = new URLSearchParams(window.location.search);
-    params.set('q', q);
-    params.set('page', '1');
+  function doSearch() {
+    var params = new URLSearchParams();
+    if (input.value) params.set('q', input.value);
+    if (sectionFilter.value) params.set('section', sectionFilter.value);
     var url = 'admin_students.php?' + params.toString();
     fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
       .then(function (r) { return r.json(); })
@@ -204,10 +213,11 @@ function sort_link($label, $key) {
   if (input) {
     input.addEventListener('input', function () {
       clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(function () {
-        doSearch(input.value);
-      }, 300);
+      debounceTimer = setTimeout(doSearch, 300);
     });
+  }
+  if (sectionFilter) {
+    sectionFilter.addEventListener('change', doSearch);
   }
 })();
 </script>
