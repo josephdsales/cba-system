@@ -52,6 +52,11 @@ function csrf_token(): string {
 function check_csrf(): void {
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $t = $_POST['csrf'] ?? '';
+        // If session is empty/lost (expired, spin-down, multi-tab), regenerate token silently
+        if (empty($_SESSION['csrf'])) {
+            $_SESSION['csrf'] = bin2hex(random_bytes(32));
+            return;
+        }
         if (!hash_equals($_SESSION['csrf'] ?? '', $t)) {
             set_flash('Session expired. Please try again.');
             header('Location: ' . ($_SERVER['HTTP_REFERER'] ?? 'index.php'));

@@ -84,6 +84,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     db()->exec("UPDATE users SET lastname=TRIM(SUBSTRING_INDEX(fullname, ',', 1)), firstname=TRIM(SUBSTRING(fullname, LOCATE(',', fullname)+1)) WHERE fullname LIKE '%,%' AND (lastname IS NULL OR lastname='')");
                 }
             } catch (Throwable $e) { /* nothing to backfill */ }
+            // v6 upgrade: database-backed sessions (survives Render spin-down)
+            if (db_driver() === 'pgsql') {
+                try { db()->exec('CREATE TABLE IF NOT EXISTS sessions (id VARCHAR(128) PRIMARY KEY, user_id INT NULL, data TEXT NOT NULL, last_activity INT NOT NULL)'); } catch (Throwable $e) { /* exists */ }
+                try { db()->exec('CREATE INDEX IF NOT EXISTS idx_sessions_last_activity ON sessions (last_activity)'); } catch (Throwable $e) { /* exists */ }
+            } else {
+                try { db()->exec('CREATE TABLE IF NOT EXISTS sessions (id VARCHAR(128) NOT NULL PRIMARY KEY, user_id INT NULL, data TEXT NOT NULL, last_activity INT NOT NULL, INDEX idx_sessions_last_activity (last_activity)) ENGINE=InnoDB'); } catch (Throwable $e) { /* exists */ }
+            }
             $hash = password_hash($admin_pass, PASSWORD_DEFAULT);
             // Portable upsert (works on MySQL and Postgres): update if username exists, else insert.
             $st = db()->prepare('SELECT id FROM users WHERE username=?');
