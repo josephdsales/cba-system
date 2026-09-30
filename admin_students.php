@@ -5,6 +5,7 @@ $user = require_role('admin');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     check_csrf();
+    $action = $_POST['action'] ?? '';
     // Preserve current page state for redirect back
     $back = 'admin_students.php';
     $qs = [];
@@ -13,8 +14,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!empty($_GET['dir'])) $qs['dir'] = $_GET['dir'];
     if ($action === 'save' && !empty($_POST['id'])) $qs['scrollto'] = $_POST['id'];
     if ($qs) $back .= '?' . http_build_query($qs);
-
-    $action = $_POST['action'] ?? '';
     if ($action === 'save') {
         $id = (int)($_POST['id'] ?? 0);
         $last = trim($_POST['lastname'] ?? '');
