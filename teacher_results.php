@@ -312,20 +312,14 @@ foreach ($exams as $x) { if ((int)$x['id'] === $sel) { $selTitle = $x['title']; 
   </div>
 </div>
 <?php endif; ?>
-<?php if ($rows): ?>
+<?php if ($best_rows): ?>
 <div class="card"><div class="table-wrap"><table>
   <tr><th>#</th><th><?= sort_link('Student', 'name') ?></th><th>Section</th><th><?= sort_link('Score', 'score') ?></th><th><?= sort_link('%', 'score') ?></th><th><?= sort_link('Submitted', 'date') ?></th><th></th></tr>
-  <?php $i = 1; foreach ($rows as $r): ?>
+  <?php $i = 1; foreach ($best_rows as $r): ?>
   <tr><td><?= $i++ ?></td><td><?= e($r['fullname']) ?></td><td><?= e($r['section_name'] ?? '—') ?></td>
   <td><?= e($r['score']) ?>/<?= e($r['total']) ?></td><td><b><?= e($r['percentage']) ?>%</b></td><td><?= e(date('m-d-Y H:i:s', strtotime($r['submitted_at']))) ?></td>
   <td><div class="btnrow" style="margin:0;gap:4px">
     <a class="btn small ghost" href="teacher_review.php?attempt_id=<?= $r['id'] ?>">Review</a>
-    <form method="post" style="display:inline" onsubmit="return confirm('Delete this attempt? Student can retake.')">
-      <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
-      <input type="hidden" name="action" value="delete_attempt">
-      <input type="hidden" name="attempt_id" value="<?= $r['id'] ?>">
-      <button class="btn small danger" type="submit">Delete</button>
-    </form>
   </div></td></tr>
   <?php endforeach; ?>
 </table></div></div>
