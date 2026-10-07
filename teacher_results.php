@@ -320,6 +320,12 @@ foreach ($exams as $x) { if ((int)$x['id'] === $sel) { $selTitle = $x['title']; 
   <td><?= e($r['score']) ?>/<?= e($r['total']) ?></td><td><b><?= e($r['percentage']) ?>%</b></td><td><?= e(date('m-d-Y H:i:s', strtotime($r['submitted_at']))) ?></td>
   <td><div class="btnrow" style="margin:0;gap:4px">
     <a class="btn small ghost" href="teacher_review.php?attempt_id=<?= $r['id'] ?>">Review</a>
+    <form method="post" action="teacher_results.php?exam_id=<?= $sel ?>" style="margin:0" onsubmit="return confirm('Delete this attempt? The student will be able to retake the exam.');">
+      <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
+      <input type="hidden" name="action" value="delete_attempt">
+      <input type="hidden" name="attempt_id" value="<?= (int)$r['id'] ?>">
+      <button class="btn small danger" type="submit">Delete</button>
+    </form>
   </div></td></tr>
   <?php endforeach; ?>
 </table></div></div>
