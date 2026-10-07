@@ -83,8 +83,7 @@ CREATE TABLE IF NOT EXISTS attempts (
   started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   submitted_at TIMESTAMP NULL,
   needs_grading SMALLINT NOT NULL DEFAULT 0,
-  shuffle_seed INT,
-  CONSTRAINT idx_attempts_exam_student UNIQUE (exam_id, student_id)
+  shuffle_seed INT
 );
 
 CREATE TABLE IF NOT EXISTS answers (
