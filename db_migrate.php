@@ -45,16 +45,17 @@ function same_database(string $a, string $b): bool {
 function copy_all(PDO $src, PDO $tgt, array $tables): array {
     ensure_schema($tgt);
 
-    // Clear the target first (children before parents) so re-runs are clean.
-    foreach (array_reverse($tables) as $t) {
-        try { $tgt->exec('DELETE FROM "' . $t . '"'); } catch (Throwable $e) { /* table missing */ }
-    }
-
-    // Copy parents before children (foreign-key order).
+    // Copy in one transaction: clear the target (children before parents), then
+    // insert everything (parents before children). A failure rolls back, so the
+    // target keeps whatever it held before the attempt.
     $tgt->beginTransaction();
     try {
+        foreach (array_reverse($tables) as $t) {
+            $tgt->exec('DELETE FROM "' . $t . '"');
+        }
         foreach ($tables as $t) {
             $rows = $src->query('SELECT * FROM "' . $t . '"')->fetchAll();
+            $affected = 0;
             foreach (array_chunk($rows, 100) as $chunk) {
                 $cols = array_map(function ($c) { return '"' . $c . '"'; }, array_keys($chunk[0]));
                 $tuple = '(' . implode(', ', array_fill(0, count($cols), '?')) . ')';
@@ -68,6 +69,13 @@ function copy_all(PDO $src, PDO $tgt, array $tables): array {
                     foreach ($row as $v) $params[] = $v;
                 }
                 $ins->execute($params);
+                $affected += $ins->rowCount();
+            }
+            if ($affected !== count($rows)) {
+                throw new RuntimeException(
+                    "table \"$t\": only $affected of " . count($rows) . " rows accepted by the new database "
+                    . "(a constraint or unique index rejected rows). Source is untouched — fix and re-run."
+                );
             }
         }
         $tgt->commit();
@@ -84,12 +92,15 @@ function copy_all(PDO $src, PDO $tgt, array $tables): array {
         } catch (Throwable $e) { /* not a serial table */ }
     }
 
-    // Verify: row counts must match on every table.
+    // Verify: row counts must match on every table. Sessions are excluded from
+    // the pass/fail check — people logging into the live app while we migrate
+    // only change session rows, which are disposable.
     $report = [];
     foreach ($tables as $t) {
         $old_n = (int)$src->query('SELECT COUNT(*) FROM "' . $t . '"')->fetchColumn();
         $new_n = (int)$tgt->query('SELECT COUNT(*) FROM "' . $t . '"')->fetchColumn();
-        $report[] = ['table' => $t, 'old' => $old_n, 'new' => $new_n, 'ok' => $old_n === $new_n];
+        $report[] = ['table' => $t, 'old' => $old_n, 'new' => $new_n,
+                     'ok' => $old_n === $new_n, 'strict' => $t !== 'sessions'];
     }
     return $report;
 }
@@ -106,7 +117,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             try {
                 $report = copy_all(pdo_from_url($old_url), pdo_from_url($new_url), $tables);
-                $bad = array_filter($report, function ($r) { return !$r['ok']; });
+                $bad = array_filter($report, function ($r) { return !$r['ok'] && $r['strict']; });
                 if ($bad) {
                     $err = 'Copied, but some row counts differ — run the migration again.';
                 } else {
@@ -146,7 +157,7 @@ include __DIR__ . '/includes/header.php';
         <td><?= e($r['table']) ?></td>
         <td><?= (int)$r['old'] ?></td>
         <td><?= (int)$r['new'] ?></td>
-        <td><?= $r['ok'] ? '✔' : '✖' ?></td>
+        <td><?= $r['ok'] ? '✔' : ($r['strict'] ? '✖' : '≈') ?></td>
       </tr>
       <?php endforeach; ?>
     </table>
