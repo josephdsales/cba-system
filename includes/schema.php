@@ -40,6 +40,7 @@ function ensure_schema(PDO $db): void {
     // v5d upgrade: remove unique constraint on attempts (exam_id, student_id) to allow multiple attempts (retakes).
     if ($driver === 'pgsql') {
         try { $db->exec('ALTER TABLE attempts DROP CONSTRAINT IF EXISTS attempts_exam_id_student_id_key'); } catch (Throwable $e) { /* doesn't exist */ }
+        try { $db->exec('ALTER TABLE attempts DROP CONSTRAINT IF EXISTS idx_attempts_exam_student'); } catch (Throwable $e) { /* doesn't exist or already a plain index */ }
     } else {
         try { $db->exec('ALTER TABLE attempts DROP INDEX uq_attempt'); } catch (Throwable $e) { /* doesn't exist */ }
     }
