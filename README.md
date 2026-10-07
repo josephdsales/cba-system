@@ -30,19 +30,30 @@ Mobile-friendly online exam system: **PHP + MySQL**. Upload to any web host, ope
 
 ## Deploy to Render (free, mobile-accessible URL)
 
-Render gives you **PostgreSQL** (not MySQL) — this app auto-detects `DATABASE_URL` and uses Postgres there, MySQL elsewhere. No code changes needed.
+The app runs on Render's **free web service**; the database is **Neon free Postgres** (1 GB, no credit card, **never expires** — unlike Render's free Postgres, which self-deletes 30 days after creation). The app auto-detects `DATABASE_URL` and uses Postgres. No code changes needed.
+
+### Fresh setup
 
 1. Put this folder on GitHub: github.com → New repository → **Add file → Upload files** → drag in all files from `cba-system` (no git CLI needed).
-2. Render.com → **New → Blueprint** → connect that repo. It creates both services from `render.yaml`:
-   - `cba-system` (Docker web service, free)
-   - `cba-db` (PostgreSQL, free, `DATABASE_URL` wired automatically)
-3. Wait for deploy → open `https://cba-system.onrender.com/install.php` → create the **admin account** → **delete `install.php`** (see note below) → login.
-4. Share the URL — works on phones and computers.
-5. **Data safety**: the Postgres DB is a separate Render service, so redeploys/rebuilds never delete data.
+2. Neon.com → sign up (free) → create a project → **Connect → Direct** → copy the connection string (do **not** use the `-pooler` one).
+3. Render.com → **New → Blueprint** → connect that repo → creates `cba-system` (Docker web service, free).
+4. Render dashboard → `cba-system` → **Environment** → add `DATABASE_URL` = the Neon connection string.
+5. Open `https://cba-system.onrender.com/install.php` → create the **admin account** → **delete `install.php`** → login.
+6. Share the URL — works on phones and computers.
+
+### Migrate an existing Render Postgres database (do this before it expires!)
+
+1. Render dashboard → `cba-system` → **Environment** → add three env vars (keep the existing `DATABASE_URL` untouched for now):
+   - `OLD_DATABASE_URL` = the **current** `DATABASE_URL` value (copy it first)
+   - `NEW_DATABASE_URL` = the Neon connection string
+   - `MIGRATE_KEY` = any secret text you make up
+2. Open `https://cba-system.onrender.com/db_migrate.php?key=YOUR_MIGRATE_KEY` → click **Copy data now** → every table must show ✔ (counts match).
+3. On the same Environment page, change `DATABASE_URL` to the **Neon** string → Render redeploys → log in and verify all data.
+4. Clean up: delete `db_migrate.php` from the GitHub repo, remove the three temp env vars, and delete the old `cba-db` database in Render (Dashboard → Databases → Delete).
 
 > ⚠️ Deleting `install.php` on Render: after setup, remove the file from your GitHub repo (open file → ⋯ → Delete) — Render auto-redeploys without it. Or leave it; it only recreates tables (IF NOT EXISTS) and upserts admin, never wipes data.
 >
-> ⏳ Free-plan note: the service sleeps after inactivity — first load takes ~30–60s to wake up. Normal on Render free tier.
+> ⏳ Free-plan note: the Render service sleeps after inactivity — first load takes ~30–60s to wake up. Neon's database also pauses when idle (~1–3s to wake), which is hidden behind Render's own wake-up. Normal on free tiers.
 
 ## Deploy to web hosting (cPanel / any PHP + MySQL host)
 

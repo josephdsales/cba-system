@@ -4,8 +4,9 @@
 // Works BOTH ways:
 //  - Classic hosting (cPanel/XAMPP): set DB_HOST / DB_NAME / DB_USER / DB_PASS
 //    below or as env vars  -> MySQL.
-//  - Render: attach the PostgreSQL database, which
-//    provides DATABASE_URL automatically -> Postgres.
+//  - Neon (free, external): set DATABASE_URL env var in the
+//    Render dashboard -> Postgres. Render's free Postgres expires,
+//    so the database lives outside Render.
 // Files can be redeployed any time; data is safe
 // because it lives in the database, not in files.
 // =============================================
@@ -34,28 +35,36 @@ function db_driver(): string {
     return 'mysql';
 }
 
+// Connect to a Postgres URL (Neon/Render style: postgres://user:pass@host:port/db?sslmode=require)
+function pdo_from_url(string $url): PDO {
+    $u = parse_url($url);
+    if ($u === false || empty($u['host'])) {
+        throw new RuntimeException('Invalid connection URL: host missing');
+    }
+    $host = $u['host'];
+    $port = $u['port'] ?? 5432;
+    $dbname = ltrim($u['path'] ?? '/cba_system', '/');
+    $dsn = "pgsql:host=$host;port=$port;dbname=$dbname";
+    if (!empty($u['query']) && strpos($u['query'], 'sslmode=') !== false) {
+        parse_str($u['query'], $q);
+        $dsn .= ';sslmode=' . ($q['sslmode'] ?? 'require');
+    }
+    $pdo = new PDO($dsn, $u['user'] ?? '', $u['pass'] ?? '', [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+    ]);
+    // Sync DB timezone with PHP timezone
+    $tz_offset = date('Z') / 3600;
+    $tz_str = ($tz_offset >= 0 ? '+' : '') . $tz_offset . ':00';
+    $pdo->exec("SET TIME ZONE INTERVAL '$tz_str' HOUR TO MINUTE");
+    return $pdo;
+}
+
 function db(): PDO {
     static $pdo = null;
     if ($pdo === null) {
         if (getenv('DATABASE_URL')) {
-            // Render Postgres, e.g. postgres://user:pass@host:5432/db?sslmode=require
-            $u = parse_url(getenv('DATABASE_URL'));
-            $host = $u['host'] ?? 'localhost';
-            $port = $u['port'] ?? 5432;
-            $dbname = ltrim($u['path'] ?? '/cba_system', '/');
-            $dsn = "pgsql:host=$host;port=$port;dbname=$dbname";
-            if (!empty($u['query']) && strpos($u['query'], 'sslmode=') !== false) {
-                parse_str($u['query'], $q);
-                $dsn .= ';sslmode=' . ($q['sslmode'] ?? 'require');
-            }
-            $pdo = new PDO($dsn, $u['user'] ?? '', $u['pass'] ?? '', [
-                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-            ]);
-            // Sync DB timezone with PHP timezone
-            $tz_offset = date('Z') / 3600;
-            $tz_str = ($tz_offset >= 0 ? '+' : '') . $tz_offset . ':00';
-            $pdo->exec("SET TIME ZONE INTERVAL '$tz_str' HOUR TO MINUTE");
+            $pdo = pdo_from_url(getenv('DATABASE_URL'));
         } else {
             $host = getenv('DB_HOST') ?: 'localhost';
             $name = getenv('DB_NAME') ?: 'cba_system';

@@ -1,9 +1,10 @@
-# Render Blueprint: 1 Docker web service + 1 free PostgreSQL.
-# In Render: New > Blueprint > connect your repo. DATABASE_URL is wired automatically.
-databases:
-  - name: cba-db
-    plan: free
-
+# Render Blueprint: 1 Docker web service.
+# The database is external and FREE: Neon Postgres (never expires).
+# Set DATABASE_URL in the Render dashboard to the Neon connection string.
+# sync: false => blueprint syncs never overwrite the dashboard value.
+# (The old free Render Postgres "cba-db" expired after 30 days, so it is no
+# longer declared here. Syncing never deletes resources — delete cba-db
+# manually in the dashboard after the migration.)
 services:
   - type: web
     name: cba-system
@@ -12,6 +13,4 @@ services:
     healthCheckPath: /index.php
     envVars:
       - key: DATABASE_URL
-        fromDatabase:
-          name: cba-db
-          property: connectionString
+        sync: false

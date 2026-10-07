@@ -1,5 +1,6 @@
 <?php
 // Partial template for students table body (used by AJAX)
+$filter_qs = http_build_query(array_filter(['q' => $q ?? null, 'section' => $section_filter ?? null, 'sort' => $sort ?? null, 'dir' => $sdir ?? null]));
 ?>
 <?php foreach ($students as $s): ?>
 <tr>
@@ -7,7 +8,7 @@
   <td><?= e($s['section_name'] ?? '—') ?></td><td><?= e($s['username']) ?></td>
   <td>
     <div class="btnrow" style="margin:0">
-      <a class="btn small ghost" href="admin_students.php?edit=<?= $s['id'] ?>">Edit</a>
+      <a class="btn small ghost" href="admin_students.php?edit=<?= $s['id'] ?><?= $filter_qs ? '&' . $filter_qs : '' ?>">Edit</a>
       <form method="post" style="display:inline" onsubmit="return confirm('Reset password for <?= e($s['username']) ?>?')">
         <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
         <input type="hidden" name="action" value="reset"><input type="hidden" name="id" value="<?= $s['id'] ?>">

@@ -101,6 +101,7 @@ if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'
 }
 
 $title = 'Manage Students';
+$filter_qs = http_build_query(array_filter(['q' => $q ?: null, 'section' => $section_filter ?: null, 'sort' => $sort !== 'name' ? $sort : null, 'dir' => $sdir !== 'asc' ? $sdir : null]));
 include __DIR__ . '/includes/header.php';
 
 function sort_link($label, $key) {
@@ -137,7 +138,7 @@ function sort_link($label, $key) {
     <input type="text" name="username" required value="<?= e($edit['username']) ?>">
     <p class="hint">Password: use Reset PW below to change it.</p>
     <div class="btnrow"><button class="btn" type="submit">Save changes</button>
-    <a class="btn ghost" href="admin_students.php<?= $q !== '' ? '?q=' . urlencode($q) : '' ?><?= $sort !== 'name' ? ($q !== '' ? '&' : '?') . 'sort=' . $sort : '' ?><?= $sdir !== 'asc' ? '&dir=' . $sdir : '' ?>">Cancel</a></div>
+    <a class="btn ghost" href="admin_students.php<?= $filter_qs ? '?' . $filter_qs : '' ?>">Cancel</a></div>
   </form>
 </div>
 <?php endif; ?>
@@ -170,7 +171,7 @@ function sort_link($label, $key) {
       <td><?= e($s['section_name'] ?? '—') ?></td><td><?= e($s['username']) ?></td>
       <td>
         <div class="btnrow" style="margin:0">
-          <a class="btn small ghost" href="admin_students.php?edit=<?= $s['id'] ?><?= $q !== '' ? '&q=' . urlencode($q) : '' ?><?= $sort !== 'name' ? '&sort=' . $sort : '' ?><?= $sdir !== 'asc' ? '&dir=' . $sdir : '' ?>">Edit</a>
+          <a class="btn small ghost" href="admin_students.php?edit=<?= $s['id'] ?><?= $filter_qs ? '&' . $filter_qs : '' ?>">Edit</a>
           <form method="post" style="display:inline" onsubmit="return confirm('Reset password for <?= e($s['username']) ?>?')">
             <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
             <input type="hidden" name="action" value="reset"><input type="hidden" name="id" value="<?= $s['id'] ?>">
