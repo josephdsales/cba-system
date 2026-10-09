@@ -13,7 +13,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!empty($_GET['section'])) $qs['section'] = $_GET['section'];
     if (!empty($_GET['sort'])) $qs['sort'] = $_GET['sort'];
     if (!empty($_GET['dir'])) $qs['dir'] = $_GET['dir'];
-    if ($action === 'save' && !empty($_POST['id'])) $qs['scrollto'] = $_POST['id'];
+    if ($action === 'save' && !empty($_POST['id'])) $qs['edit'] = (int)$_POST['id'];
     if ($qs) $back .= '?' . http_build_query($qs);
     if ($action === 'save') {
         $id = (int)($_POST['id'] ?? 0);
