@@ -105,11 +105,15 @@ $filter_qs = http_build_query(array_filter(['q' => $q ?: null, 'section' => $sec
 include __DIR__ . '/includes/header.php';
 
 function sort_link($label, $key) {
-    global $q, $sort, $sdir;
+    global $q, $sort, $sdir, $section_filter;
     $nd = ($sort === $key && $sdir === 'desc') ? 'asc' : 'desc';
     $arrow = $sort === $key ? ($sdir === 'desc' ? ' ▼' : ' ▲') : '';
-    $qs = $q !== '' ? '&q=' . urlencode($q) : '';
-    return '<a href="admin_students.php?sort=' . $key . '&dir=' . $nd . $qs . '">' . e($label) . $arrow . '</a>';
+    $qs = http_build_query(array_filter([
+        'sort' => $key, 'dir' => $nd,
+        'q' => $q !== '' ? $q : null,
+        'section' => $section_filter !== '' ? $section_filter : null,
+    ]));
+    return '<a href="admin_students.php?' . $qs . '">' . e($label) . $arrow . '</a>';
 }
 ?>
 <?php if ($edit): ?>
@@ -202,7 +206,12 @@ function sort_link($label, $key) {
     var params = new URLSearchParams();
     if (input.value) params.set('q', input.value);
     if (sectionFilter.value) params.set('section', sectionFilter.value);
-    var url = 'admin_students.php?' + params.toString();
+    var cur = new URLSearchParams(window.location.search);
+    if (cur.get('sort')) params.set('sort', cur.get('sort'));
+    if (cur.get('dir')) params.set('dir', cur.get('dir'));
+    var qs = params.toString();
+    var url = 'admin_students.php' + (qs ? '?' + qs : '');
+    history.replaceState(null, '', url);
     fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
       .then(function (r) { return r.json(); })
       .then(function (data) {
