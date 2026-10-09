@@ -156,7 +156,10 @@ function sort_link($label, $key) {
       <?php endforeach; ?>
     </select>
   </div>
-  <p class="hint">Total: <span id="student-count"><?= count($students) ?></span> student(s). Admin can reset any student password or delete accounts.</p>
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px">
+    <p class="hint" style="margin:0">Total: <span id="student-count"><?= count($students) ?></span> student(s). Admin can reset any student password or delete accounts.</p>
+    <a class="btn small ghost" id="download-link" href="admin_students_download.php<?= $filter_qs ? '?' . $filter_qs : '' ?>">⬇ Download (Excel)</a>
+  </div>
 </div>
 <div class="card"><div class="table-wrap"><table id="students-table">
   <thead>
@@ -212,6 +215,8 @@ function sort_link($label, $key) {
     var qs = params.toString();
     var url = 'admin_students.php' + (qs ? '?' + qs : '');
     history.replaceState(null, '', url);
+    var dl = document.getElementById('download-link');
+    if (dl) dl.href = 'admin_students_download.php' + (qs ? '?' + qs : '');
     fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
       .then(function (r) { return r.json(); })
       .then(function (data) {
