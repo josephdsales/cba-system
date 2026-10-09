@@ -135,22 +135,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
         
-        if (($_POST['action'] ?? '') === 'delete') {
-            $id = (int)$_POST['id'];
-            $st = db()->prepare('SELECT * FROM sections WHERE id=?');
-            $st->execute([$id]); $cur = $st->fetch();
-            if (!$cur || !can_delete_section($cur, $me)) {
-                set_flash('Not allowed to delete this section.');
-            } else {
-                try {
-                    $st = db()->prepare('DELETE FROM sections WHERE id=?');
-                    $st->execute([$id]);
-                    set_flash('Section deleted.');
-                } catch (PDOException $ex) { set_flash('Cannot delete: section is in use by students/exams.'); }
-            }
-            header("Location: $back"); exit;
+        header("Location: $back"); exit;
+    }
+    
+    if (($_POST['action'] ?? '') === 'delete') {
+        $id = (int)$_POST['id'];
+        $st = db()->prepare('SELECT * FROM sections WHERE id=?');
+        $st->execute([$id]); $cur = $st->fetch();
+        if (!$cur || !can_delete_section($cur, $me)) {
+            set_flash('Not allowed to delete this section.');
+        } else {
+            try {
+                $st = db()->prepare('DELETE FROM sections WHERE id=?');
+                $st->execute([$id]);
+                set_flash('Section deleted.');
+            } catch (PDOException $ex) { set_flash('Cannot delete: section is in use by students/exams.'); }
         }
-        
         header("Location: $back"); exit;
     }
 }
