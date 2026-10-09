@@ -13,7 +13,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!empty($_GET['section'])) $qs['section'] = $_GET['section'];
     if (!empty($_GET['sort'])) $qs['sort'] = $_GET['sort'];
     if (!empty($_GET['dir'])) $qs['dir'] = $_GET['dir'];
-    if ($action === 'save' && !empty($_POST['id'])) $qs['edit'] = (int)$_POST['id'];
+    if ($action === 'save' && !empty($_POST['id'])) $qs['scrollto'] = (int)$_POST['id'];
     if ($qs) $back .= '?' . http_build_query($qs);
     if ($action === 'save') {
         $id = (int)($_POST['id'] ?? 0);
@@ -232,18 +232,20 @@ function sort_link($label, $key) {
 })();
 </script>
 <script>
-// Scroll to edited student row
+// After save: land on the student's row in the grid (no manual scrolling)
 (function () {
   var params = new URLSearchParams(window.location.search);
-  var scrollTo = params.get('scrollto');
-  if (scrollTo) {
-    var row = document.getElementById('student-' + scrollTo);
-    if (row) {
-      row.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      row.style.background = 'var(--warn-bg, #fef3cd)';
-      setTimeout(function () { row.style.background = ''; }, 2000);
-    }
+  var id = params.get('scrollto');
+  if (!id) return;
+  function go(instant) {
+    var row = document.getElementById('student-' + id);
+    if (!row) return;
+    row.scrollIntoView(instant ? { block: 'center' } : { behavior: 'smooth', block: 'center' });
+    row.style.background = 'var(--warn-bg, #fef3cd)';
+    setTimeout(function () { row.style.background = ''; }, 2500);
   }
+  go(false);
+  window.addEventListener('load', function () { go(true); });
 })();
 </script>
 <?php include __DIR__ . '/includes/footer.php'; ?>
