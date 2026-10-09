@@ -300,7 +300,7 @@ foreach ($exams as $x) { if ((int)$x['id'] === $sel) { $selTitle = $x['title']; 
     <small class="hint">Top
       <?php foreach ([3, 5, 10] as $n): ?><a href="teacher_results.php?exam_id=<?= $sel ?>&topn=<?= $n ?>&sort=<?= $sort ?>&dir=<?= $sdir ?>"><?= $n ?></a><?= $n !== 10 ? ' · ' : '' ?><?php endforeach; ?>
     </small>
-    <a class="btn small ghost" style="float:right;margin-top:4px" href="teacher_analysis_download.php?exam_id=<?= $sel ?>">⬇ Download (Excel)</a>
+    <a class="btn small ghost" style="float:right;margin-top:4px" href="teacher_analysis_download.php?exam_id=<?= $sel ?>&topn=<?= $topn ?>">⬇ Download (Excel)</a>
   </h3>
   <div class="grid two">
     <div><h4 style="color:var(--ok)">✓ Easiest <?= $topn ?></h4>

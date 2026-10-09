@@ -14,6 +14,9 @@ $st = db()->prepare('SELECT COUNT(DISTINCT a.student_id) FROM attempts a WHERE a
 $st->execute([$exam_id]);
 $takers = (int)$st->fetchColumn();
 
+// Same Top-N setting as the page (teacher_results.php line 171)
+$topn = isset($_GET['topn']) ? max(1, min(20, (int)$_GET['topn'])) : 5;
+
 // Same query as the Question analysis block on teacher_results.php,
 // so the download always matches what the page shows.
 $st = db()->prepare("SELECT q.id, q.question_text, q.qtype, q.option_a, q.option_b, q.option_c, q.option_d, q.correct_answer, q.points,
@@ -41,6 +44,10 @@ foreach ($st->fetchAll() as $r) {
 }
 usort($analysis, function ($a, $b) { return $b['pct'] <=> $a['pct']; });
 
+// Exactly what the page shows
+$easiest = array_slice($analysis, 0, $topn);
+$hardest = array_slice(array_reverse($analysis), 0, $topn);
+
 $filename = 'QuestionAnalysis-' . preg_replace('/[^A-Za-z0-9-_]+/', '_', $exam['title']) . '-' . date('Y-m-d') . '.csv';
 
 header('Content-Type: text/csv; charset=UTF-8');
@@ -56,17 +63,21 @@ fwrite($out, "\xEF\xBB\xBF");
 fputcsv($out, ['Exam:', $exam['title']]);
 fputcsv($out, ['Teacher:', $user['fullname']]);
 fputcsv($out, ['Students:', $takers]);
+fputcsv($out, ['Top N:', $topn]);
 fputcsv($out, ['Date Generated:', date('Y-m-d H:i:s')]);
-fputcsv($out, []); // blank row
 
-// Table headers
-fputcsv($out, ['Rank (Easiest First)', 'Question', 'Type', 'Correct', 'Total', '% Correct']);
+$section = function (string $label, string $rankLabel, array $rows) use ($out) {
+    fputcsv($out, []);
+    fputcsv($out, [$label]);
+    fputcsv($out, [$rankLabel, 'Question', 'Type', 'Correct', 'Total', '% Correct']);
+    $rank = 1;
+    foreach ($rows as $a) {
+        fputcsv($out, [$rank++, $a['text'], $a['qtype'], $a['got'], $a['tries'], $a['pct'] . '%']);
+    }
+};
 
-// Data rows, easiest to hardest
-$rank = 1;
-foreach ($analysis as $a) {
-    fputcsv($out, [$rank++, $a['text'], $a['qtype'], $a['got'], $a['tries'], $a['pct'] . '%']);
-}
+$section('Easiest (Top ' . $topn . ')', 'Rank (Easiest First)', $easiest);
+$section('Hardest (Top ' . $topn . ')', 'Rank (Hardest First)', $hardest);
 
 fclose($out);
 exit;
