@@ -1,15 +1,32 @@
 <?php
 require __DIR__ . '/includes/config.php';
 require __DIR__ . '/includes/auth.php';
+require_once __DIR__ . '/includes/schema.php';
+ensure_per_student_retake();
 $user = require_role('student');
 
-$st = db()->prepare("SELECT e.*, u.fullname AS teacher_name,
-    (SELECT COUNT(*) FROM questions q WHERE q.exam_id=e.id) AS qcount,
-    (SELECT a.id FROM attempts a WHERE a.exam_id=e.id AND a.student_id=? AND a.submitted_at IS NOT NULL) AS done_id
-    FROM exams e JOIN users u ON u.id=e.teacher_id
-    WHERE e.status='published' AND (e.section_id IS NULL OR e.section_id=? OR EXISTS (SELECT 1 FROM exam_students es WHERE es.exam_id=e.id AND es.student_id=?))
-    ORDER BY e.created_at DESC");
-$st->execute([$user['id'], $user['section_id'], $user['id']]);
+if (has_per_student_retake()) {
+    // Private-remedial rule: open-to-all (section_id IS NULL) applies only
+    // when the exam has NO per-student assignments. Exams created via
+    // "Remedial > New" are therefore visible ONLY to the selected list.
+    // Retake = global fallback OR per-student grant.
+    $st = db()->prepare("SELECT e.*, u.fullname AS teacher_name,
+        (SELECT COUNT(*) FROM questions q WHERE q.exam_id=e.id) AS qcount,
+        (SELECT MAX(a.id) FROM attempts a WHERE a.exam_id=e.id AND a.student_id=? AND a.submitted_at IS NOT NULL) AS done_id,
+        (SELECT MAX(es.allow_retake) FROM exam_students es WHERE es.exam_id=e.id AND es.student_id=?) AS my_retake
+        FROM exams e JOIN users u ON u.id=e.teacher_id
+        WHERE e.status='published' AND ((e.section_id IS NULL AND NOT EXISTS (SELECT 1 FROM exam_students es2 WHERE es2.exam_id=e.id)) OR e.section_id=? OR EXISTS (SELECT 1 FROM exam_students es WHERE es.exam_id=e.id AND es.student_id=?))
+        ORDER BY e.created_at DESC");
+    $st->execute([$user['id'], $user['id'], $user['section_id'], $user['id']]);
+} else {
+    $st = db()->prepare("SELECT e.*, u.fullname AS teacher_name,
+        (SELECT COUNT(*) FROM questions q WHERE q.exam_id=e.id) AS qcount,
+        (SELECT a.id FROM attempts a WHERE a.exam_id=e.id AND a.student_id=? AND a.submitted_at IS NOT NULL) AS done_id
+        FROM exams e JOIN users u ON u.id=e.teacher_id
+        WHERE e.status='published' AND (e.section_id IS NULL OR e.section_id=? OR EXISTS (SELECT 1 FROM exam_students es WHERE es.exam_id=e.id AND es.student_id=?))
+        ORDER BY e.created_at DESC");
+    $st->execute([$user['id'], $user['section_id'], $user['id']]);
+}
 $exams = $st->fetchAll();
 $title = 'Available Exams';
 include __DIR__ . '/includes/header.php';
@@ -22,7 +39,8 @@ include __DIR__ . '/includes/header.php';
     <td><?= e($x['teacher_name']) ?></td><td><?= $x['qcount'] ?></td><td><?= $x['time_limit_minutes'] ?> min</td>
     <td><?php if ($x['done_id']): ?>
       <span class="badge b-published">Taken ✓</span>
-      <?php if (!empty($x['allow_retake'])): ?>
+      <?php $can_retake = !empty($x['allow_retake']) || !empty($x['my_retake'] ?? null); ?>
+      <?php if ($can_retake): ?>
         <a class="btn small ok" href="student_take.php?exam_id=<?= $x['id'] ?>">Retake</a>
       <?php endif; ?>
       <?php else: ?><a class="btn small" href="student_take.php?exam_id=<?= $x['id'] ?>">Take now</a><?php endif; ?></td>

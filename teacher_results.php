@@ -1,6 +1,8 @@
 <?php
 require __DIR__ . '/includes/config.php';
 require __DIR__ . '/includes/auth.php';
+require_once __DIR__ . '/includes/schema.php';
+ensure_per_student_retake();
 $user = require_role('teacher');
 
 $st = db()->prepare('SELECT * FROM exams WHERE teacher_id=? ORDER BY created_at DESC');
@@ -78,14 +80,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $valid_students = [];
     }
 
-    // Helper: insert ignore for MySQL / ON CONFLICT DO NOTHING for PostgreSQL
-    $assign_students = function ($exam_id, $student_ids) {
-        if (db_driver() === 'pgsql') {
-            $st = db()->prepare('INSERT INTO exam_students (exam_id, student_id) VALUES (?, ?) ON CONFLICT DO NOTHING');
+    // Per-student assignment: allow_retake applies ONLY to the selected list.
+    // Never set exams.allow_retake globally here (that leaked Retake to all).
+    $use_per_student = has_per_student_retake();
+    $assign_students = function ($exam_id, $student_ids, $retake_flag = 0) use ($use_per_student) {
+        $retake_flag = $retake_flag ? 1 : 0;
+        if ($use_per_student) {
+            if (db_driver() === 'pgsql') {
+                $st = db()->prepare('INSERT INTO exam_students (exam_id, student_id, allow_retake) VALUES (?, ?, ?) ON CONFLICT (exam_id, student_id) DO UPDATE SET allow_retake=EXCLUDED.allow_retake');
+            } else {
+                $st = db()->prepare('INSERT INTO exam_students (exam_id, student_id, allow_retake) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE allow_retake=VALUES(allow_retake)');
+            }
+            foreach ($student_ids as $sid) { $st->execute([$exam_id, $sid, $retake_flag]); }
         } else {
-            $st = db()->prepare('INSERT IGNORE INTO exam_students (exam_id, student_id) VALUES (?, ?)');
+            // Fallback for DBs where the v5h migration hasn't run yet.
+            if (db_driver() === 'pgsql') {
+                $st = db()->prepare('INSERT INTO exam_students (exam_id, student_id) VALUES (?, ?) ON CONFLICT DO NOTHING');
+            } else {
+                $st = db()->prepare('INSERT IGNORE INTO exam_students (exam_id, student_id) VALUES (?, ?)');
+            }
+            foreach ($student_ids as $sid) { $st->execute([$exam_id, $sid]); }
         }
-        foreach ($student_ids as $sid) { $st->execute([$exam_id, $sid]); }
     };
 
     if ($mode === 'existing' && $target_exam_id && $valid_students) {
@@ -94,15 +109,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $target_exam = $st->fetch();
         if (!$target_exam) { set_flash('Target exam not found.'); }
         else {
-            if ($shuffle || $allow_retake) {
-                db()->prepare("UPDATE exams SET shuffle_questions=?, allow_retake=?, status='published' WHERE id=?")
-                    ->execute([$shuffle ? 1 : 0, $allow_retake ? 1 : 0, $target_exam_id]);
-            } else {
-                db()->prepare("UPDATE exams SET status='published' WHERE id=?")
-                    ->execute([$target_exam_id]);
-            }
-            $assign_students($target_exam_id, $valid_students);
-            set_flash('Assigned ' . count($valid_students) . ' student(s) to "' . $target_exam['title'] . '".' . ($shuffle ? ' Shuffle enabled.' : '') . ($allow_retake ? ' Retake allowed.' : ''));
+            // Shuffle is exam-wide presentation; retake is per-student permission.
+            db()->prepare("UPDATE exams SET shuffle_questions=?, status='published' WHERE id=?")
+                ->execute([$shuffle ? 1 : 0, $target_exam_id]);
+            $assign_students($target_exam_id, $valid_students, $allow_retake ? 1 : 0);
+            set_flash('Assigned ' . count($valid_students) . ' student(s) to "' . $target_exam['title'] . '".' . ($shuffle ? ' Shuffle enabled.' : '') . ($allow_retake ? ' Retake allowed (selected students only).' : ''));
         }
     } elseif ($mode === 'new' && $valid_students) {
         $title = trim($_POST['new_title'] ?? '');
@@ -113,9 +124,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         else {
             db()->beginTransaction();
             try {
-                $st = db()->prepare('INSERT INTO exams (title, description, teacher_id, section_id, time_limit_minutes, passing_percent, status, shuffle_questions, allow_retake) VALUES (?, ?, ?, NULL, ?, ?, "published", ?, ?)');
-                $st->execute([$title, $desc ?: null, $user['id'], $time_limit, $passing, $shuffle ? 1 : 0, $allow_retake ? 1 : 0]);
-                $new_exam_id = (int)db()->lastInsertId();
+                // NOTE: section_id=NULL + private-visibility rule in student
+                // pages means this exam is visible ONLY to assigned students.
+                // exams.allow_retake stays 0; per-student flag carries permission.
+                if (db_driver() === 'pgsql') {
+                    $st = db()->prepare("INSERT INTO exams (title, description, teacher_id, section_id, time_limit_minutes, passing_percent, status, shuffle_questions, allow_retake) VALUES (?, ?, ?, NULL, ?, ?, 'published', ?, 0) RETURNING id");
+                    $st->execute([$title, $desc ?: null, $user['id'], $time_limit, $passing, $shuffle ? 1 : 0]);
+                    $new_exam_id = (int)$st->fetchColumn();
+                } else {
+                    $st = db()->prepare('INSERT INTO exams (title, description, teacher_id, section_id, time_limit_minutes, passing_percent, status, shuffle_questions, allow_retake) VALUES (?, ?, ?, NULL, ?, ?, "published", ?, 0)');
+                    $st->execute([$title, $desc ?: null, $user['id'], $time_limit, $passing, $shuffle ? 1 : 0]);
+                    $new_exam_id = (int)db()->lastInsertId();
+                }
 
                 $st = db()->prepare('SELECT * FROM questions WHERE exam_id=? ORDER BY sort_order, id');
                 $st->execute([$sel]); $src_questions = $st->fetchAll();
@@ -124,10 +144,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     $ins->execute([$new_exam_id, $q['question_text'], $q['qtype'], $q['option_a'], $q['option_b'], $q['option_c'], $q['option_d'], $q['correct_answer'], $q['points'], $q['sort_order']]);
                 }
 
-                $assign_students($new_exam_id, $valid_students);
+                $assign_students($new_exam_id, $valid_students, $allow_retake ? 1 : 0);
 
                 db()->commit();
-                set_flash('Created remedial exam "' . $title . '" with ' . count($src_questions) . ' questions, assigned to ' . count($valid_students) . ' student(s).' . ($shuffle ? ' Shuffle enabled.' : '') . ($allow_retake ? ' Retake allowed.' : ''));
+                set_flash('Created remedial exam "' . $title . '" with ' . count($src_questions) . ' questions, assigned to ' . count($valid_students) . ' student(s).' . ($shuffle ? ' Shuffle enabled.' : '') . ($allow_retake ? ' Retake allowed (selected students only).' : ''));
             } catch (Throwable $ex) {
                 db()->rollBack();
                 set_flash('Failed to create remedial exam: ' . $ex->getMessage());
@@ -347,7 +367,7 @@ foreach ($exams as $x) { if ((int)$x['id'] === $sel) { $selTitle = $x['title']; 
       </select>
       <div class="grid two" style="margin-top:12px">
         <div><label><input type="checkbox" name="shuffle_questions" value="1"> Shuffle questions</label></div>
-        <div><label><input type="checkbox" name="allow_retake" value="1"> Allow retake</label></div>
+        <div><label><input type="checkbox" name="allow_retake" value="1"> Allow retake <small class="hint">(selected students only)</small></label></div>
       </div>
       <label>Assign to Students</label>
       <div style="max-height:200px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:8px">

@@ -1,10 +1,19 @@
 <?php
 require __DIR__ . '/includes/config.php';
 require __DIR__ . '/includes/auth.php';
+require_once __DIR__ . '/includes/schema.php';
+ensure_per_student_retake();
 $user = require_role('student');
 
-$st = db()->prepare("SELECT a.*, e.title, e.passing_percent, e.allow_retake FROM attempts a JOIN exams e ON e.id=a.exam_id
-    WHERE a.student_id=? AND a.submitted_at IS NOT NULL ORDER BY a.submitted_at DESC");
+if (has_per_student_retake()) {
+    $st = db()->prepare("SELECT a.*, e.title, e.passing_percent, e.allow_retake,
+        (SELECT MAX(es.allow_retake) FROM exam_students es WHERE es.exam_id=a.exam_id AND es.student_id=a.student_id) AS assigned_retake
+        FROM attempts a JOIN exams e ON e.id=a.exam_id
+        WHERE a.student_id=? AND a.submitted_at IS NOT NULL ORDER BY a.submitted_at DESC");
+} else {
+    $st = db()->prepare("SELECT a.*, e.title, e.passing_percent, e.allow_retake FROM attempts a JOIN exams e ON e.id=a.exam_id
+        WHERE a.student_id=? AND a.submitted_at IS NOT NULL ORDER BY a.submitted_at DESC");
+}
 $st->execute([$user['id']]);
 $rows = $st->fetchAll();
 $title = 'My Scores';
@@ -21,7 +30,8 @@ include __DIR__ . '/includes/header.php';
     <td>
       <div class="btnrow" style="margin:0;gap:4px">
         <a class="btn small ghost" href="student_review.php?attempt_id=<?= $r['id'] ?>">Review</a>
-        <?php if (!empty($r['allow_retake'])): ?>
+        <?php $can_retake = !empty($r['allow_retake']) || !empty($r['assigned_retake'] ?? null); ?>
+        <?php if ($can_retake): ?>
         <a class="btn small ok" href="student_take.php?exam_id=<?= $r['exam_id'] ?>">Retake</a>
         <?php endif; ?>
       </div>

@@ -1,10 +1,16 @@
 <?php
 require __DIR__ . '/includes/config.php';
 require __DIR__ . '/includes/auth.php';
+require_once __DIR__ . '/includes/schema.php';
+ensure_per_student_retake();
 $user = require_role('student');
 
 $exam_id = (int)($_GET['exam_id'] ?? $_POST['exam_id'] ?? 0);
-$st = db()->prepare("SELECT * FROM exams WHERE id=? AND status='published' AND (section_id IS NULL OR section_id=? OR EXISTS (SELECT 1 FROM exam_students es WHERE es.exam_id=exams.id AND es.student_id=?))");
+if (has_per_student_retake()) {
+    $st = db()->prepare("SELECT * FROM exams WHERE id=? AND status='published' AND ((section_id IS NULL AND NOT EXISTS (SELECT 1 FROM exam_students es2 WHERE es2.exam_id=exams.id)) OR section_id=? OR EXISTS (SELECT 1 FROM exam_students es WHERE es.exam_id=exams.id AND es.student_id=?))");
+} else {
+    $st = db()->prepare("SELECT * FROM exams WHERE id=? AND status='published' AND (section_id IS NULL OR section_id=? OR EXISTS (SELECT 1 FROM exam_students es WHERE es.exam_id=exams.id AND es.student_id=?))");
+}
 $st->execute([$exam_id, $user['section_id'], $user['id']]);
 $exam = $st->fetch();
 if (!$exam) { set_flash('Exam not available.'); header('Location: student_exams.php'); exit; }
@@ -13,11 +19,23 @@ $st = db()->prepare('SELECT * FROM questions WHERE exam_id=? ORDER BY sort_order
 $st->execute([$exam_id]); $questions = $st->fetchAll();
 if (!$questions) { set_flash('This exam has no questions yet.'); header('Location: student_exams.php'); exit; }
 
-$st = db()->prepare('SELECT * FROM attempts WHERE exam_id=? AND student_id=?');
+// Latest attempt first: resume in-progress retake instead of spawning duplicates.
+$st = db()->prepare('SELECT * FROM attempts WHERE exam_id=? AND student_id=? ORDER BY id DESC');
 $st->execute([$exam_id, $user['id']]);
 $attempt = $st->fetch();
 
-$allow_retake = !empty($exam['allow_retake']);
+// Retake permission: global legacy flag OR per-student remedial grant.
+// Only students on the teacher's remedial list (exam_students.allow_retake=1)
+// may retake; others are blocked even if they guess the URL.
+$assigned_retake = 0;
+if (has_per_student_retake()) {
+    try {
+        $rst = db()->prepare('SELECT MAX(allow_retake) FROM exam_students WHERE exam_id=? AND student_id=?');
+        $rst->execute([$exam_id, $user['id']]);
+        $assigned_retake = (int)($rst->fetchColumn() ?? 0);
+    } catch (Throwable $e) { $assigned_retake = 0; }
+}
+$allow_retake = !empty($exam['allow_retake']) || !empty($assigned_retake);
 $shuffle = !empty($exam['shuffle_questions']);
 
 if ($attempt && $attempt['submitted_at'] !== null) {
