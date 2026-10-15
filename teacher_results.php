@@ -62,6 +62,51 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     header('Location: teacher_results.php?exam_id=' . $sel); exit;
 }
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'retake_access') {
+    check_csrf();
+    $op = $_POST['op'] ?? '';
+    $target_exam_id = (int)($_POST['target_exam_id'] ?? $sel);
+    $sid = (int)($_POST['student_id'] ?? 0);
+    // Verify this teacher owns the exam.
+    $st = db()->prepare('SELECT id FROM exams WHERE id=? AND teacher_id=?');
+    $st->execute([$target_exam_id, $user['id']]);
+    if (!$st->fetch()) {
+        set_flash('Exam not found.');
+    } else {
+        $use_col = has_per_student_retake();
+        try {
+            if ($op === 'revoke_one' && $sid) {
+                if ($use_col) db()->prepare('UPDATE exam_students SET allow_retake=0 WHERE exam_id=? AND student_id=?')->execute([$target_exam_id, $sid]);
+                else db()->prepare('UPDATE exams SET allow_retake=0 WHERE id=?')->execute([$target_exam_id]);
+                set_flash('Retake cancelled for that student. The Retake button is now hidden on their side.');
+            } elseif ($op === 'grant_one' && $sid) {
+                if ($use_col) {
+                    if (db_driver() === 'pgsql') {
+                        db()->prepare('INSERT INTO exam_students (exam_id, student_id, allow_retake) VALUES (?, ?, 1) ON CONFLICT (exam_id, student_id) DO UPDATE SET allow_retake=1')->execute([$target_exam_id, $sid]);
+                    } else {
+                        db()->prepare('INSERT INTO exam_students (exam_id, student_id, allow_retake) VALUES (?, ?, 1) ON DUPLICATE KEY UPDATE allow_retake=1')->execute([$target_exam_id, $sid]);
+                    }
+                } else {
+                    db()->prepare('UPDATE exams SET allow_retake=1 WHERE id=?')->execute([$target_exam_id]);
+                }
+                set_flash('Retake re-allowed for that student.');
+            } elseif ($op === 'remove_one' && $sid) {
+                db()->prepare('DELETE FROM exam_students WHERE exam_id=? AND student_id=?')->execute([$target_exam_id, $sid]);
+                set_flash('Student removed from remedial list. They lose access to this private exam / retake.');
+            } elseif ($op === 'revoke_all') {
+                if ($use_col) db()->prepare('UPDATE exam_students SET allow_retake=0 WHERE exam_id=?')->execute([$target_exam_id]);
+                db()->prepare('UPDATE exams SET allow_retake=0 WHERE id=?')->execute([$target_exam_id]);
+                set_flash('All retakes cancelled for this exam. No student sees Retake now.');
+            } else {
+                set_flash('Invalid request.');
+            }
+        } catch (Throwable $ex) {
+            set_flash('Failed: ' . $ex->getMessage());
+        }
+    }
+    header('Location: teacher_results.php?exam_id=' . $sel); exit;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'remedial') {
     check_csrf();
     $mode = $_POST['remedial_mode'] ?? '';
@@ -171,6 +216,31 @@ if ($sel && $best_rows) {
 }
 
 $other_exams = array_filter($exams, fn($x) => (int)$x['id'] !== $sel);
+
+// Remedial / retake access list for the selected exam (per-student grants).
+$assigned_list = [];
+$sel_allow_global = 0;
+if ($sel) {
+    foreach ($exams as $x) { if ((int)$x['id'] === $sel) { $sel_allow_global = !empty($x['allow_retake']); break; } }
+    try {
+        if (has_per_student_retake()) {
+            $st = db()->prepare("SELECT es.exam_id, es.student_id, es.allow_retake, u.fullname, s.name AS section_name,
+                (SELECT MAX(a.id) FROM attempts a WHERE a.exam_id=es.exam_id AND a.student_id=es.student_id AND a.submitted_at IS NOT NULL) AS done_id
+                FROM exam_students es JOIN users u ON u.id=es.student_id
+                LEFT JOIN sections s ON s.id=u.section_id
+                WHERE es.exam_id=? ORDER BY u.fullname");
+            $st->execute([$sel]);
+        } else {
+            $st = db()->prepare("SELECT es.exam_id, es.student_id, 0 AS allow_retake, u.fullname, s.name AS section_name,
+                (SELECT MAX(a.id) FROM attempts a WHERE a.exam_id=es.exam_id AND a.student_id=es.student_id AND a.submitted_at IS NOT NULL) AS done_id
+                FROM exam_students es JOIN users u ON u.id=es.student_id
+                LEFT JOIN sections s ON s.id=u.section_id
+                WHERE es.exam_id=? ORDER BY u.fullname");
+            $st->execute([$sel]);
+        }
+        $assigned_list = $st->fetchAll();
+    } catch (Throwable $e) { $assigned_list = []; }
+}
 
 $title = 'Exam Results';
 $mpl = null;
@@ -351,6 +421,79 @@ foreach ($exams as $x) { if ((int)$x['id'] === $sel) { $selTitle = $x['title']; 
   </div></td></tr>
   <?php endforeach; ?>
 </table></div></div>
+<?php endif; ?>
+<?php if ($sel): ?>
+<div class="card no-print" id="retake-access">
+  <h3 style="margin-top:0">🛑 Remedial / Retake access <small class="hint">— cancel to remove the Retake button on student side</small></h3>
+  <?php if ($sel_allow_global): ?>
+    <p class="hint" style="color:var(--bad)">⚠️ This exam still allows retake <b>for everyone</b> (legacy global flag). Cancel it below so only your selected list can retake.</p>
+  <?php endif; ?>
+  <?php if ($assigned_list): ?>
+  <p class="hint" style="margin:4px 0">Only students below with <b>Retake: Yes</b> see the Retake button. Cancelling hides it immediately (student page refresh).</p>
+  <div class="table-wrap"><table>
+    <tr><th>Student</th><th>Section</th><th>Taken?</th><th>Retake?</th><th></th></tr>
+    <?php foreach ($assigned_list as $al): ?>
+    <tr>
+      <td><?= e($al['fullname']) ?></td>
+      <td><?= e($al['section_name'] ?? '—') ?></td>
+      <td><?= $al['done_id'] ? '<span class="badge b-published">Taken ✓</span>' : '<span class="hint">Not yet</span>' ?></td>
+      <td><?= !empty($al['allow_retake']) ? '<span class="badge b-published">Yes</span>' : '<span class="hint">No</span>' ?></td>
+      <td><div class="btnrow" style="margin:0;gap:4px">
+        <?php if (!empty($al['allow_retake'])): ?>
+        <form method="post" action="teacher_results.php?exam_id=<?= $sel ?>" style="margin:0" onsubmit="return confirm('Cancel retake for this student? The Retake button will disappear on their side.');">
+          <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
+          <input type="hidden" name="action" value="retake_access">
+          <input type="hidden" name="op" value="revoke_one">
+          <input type="hidden" name="target_exam_id" value="<?= $sel ?>">
+          <input type="hidden" name="student_id" value="<?= (int)$al['student_id'] ?>">
+          <button class="btn small danger" type="submit">Cancel retake</button>
+        </form>
+        <?php else: ?>
+        <form method="post" action="teacher_results.php?exam_id=<?= $sel ?>" style="margin:0">
+          <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
+          <input type="hidden" name="action" value="retake_access">
+          <input type="hidden" name="op" value="grant_one">
+          <input type="hidden" name="target_exam_id" value="<?= $sel ?>">
+          <input type="hidden" name="student_id" value="<?= (int)$al['student_id'] ?>">
+          <button class="btn small ok" type="submit">Allow retake</button>
+        </form>
+        <?php endif; ?>
+        <form method="post" action="teacher_results.php?exam_id=<?= $sel ?>" style="margin:0" onsubmit="return confirm('Remove this student from the remedial list entirely?');">
+          <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
+          <input type="hidden" name="action" value="retake_access">
+          <input type="hidden" name="op" value="remove_one">
+          <input type="hidden" name="target_exam_id" value="<?= $sel ?>">
+          <input type="hidden" name="student_id" value="<?= (int)$al['student_id'] ?>">
+          <button class="btn small ghost" type="submit">Remove</button>
+        </form>
+      </div></td>
+    </tr>
+    <?php endforeach; ?>
+  </table></div>
+  <div class="btnrow">
+    <form method="post" action="teacher_results.php?exam_id=<?= $sel ?>" style="margin:0" onsubmit="return confirm('Cancel ALL retakes for this exam? No student will see Retake.');">
+      <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
+      <input type="hidden" name="action" value="retake_access">
+      <input type="hidden" name="op" value="revoke_all">
+      <input type="hidden" name="target_exam_id" value="<?= $sel ?>">
+      <button class="btn danger" type="submit">Cancel all retakes</button>
+    </form>
+  </div>
+  <?php else: ?>
+  <p class="hint">No students on the remedial list for this exam yet. Use 🩺 Remedial above to assign. <?php if ($sel_allow_global): ?>Global retake is ON — use Cancel all to turn it off.<?php endif; ?></p>
+  <?php if ($sel_allow_global): ?>
+  <div class="btnrow">
+    <form method="post" action="teacher_results.php?exam_id=<?= $sel ?>" style="margin:0" onsubmit="return confirm('Turn off global retake? No student will see Retake.');">
+      <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
+      <input type="hidden" name="action" value="retake_access">
+      <input type="hidden" name="op" value="revoke_all">
+      <input type="hidden" name="target_exam_id" value="<?= $sel ?>">
+      <button class="btn danger" type="submit">Turn off retake for all</button>
+    </form>
+  </div>
+  <?php endif; ?>
+  <?php endif; ?>
+</div>
 <?php endif; ?>
 <div id="remedial-modal" class="modal" style="display:none">
   <div class="modal-backdrop" onclick="closeRemedialModal()"></div>
