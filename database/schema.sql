@@ -55,10 +55,12 @@ CREATE TABLE IF NOT EXISTS exams (
 ) ENGINE=InnoDB;
 
 -- Per-student exam assignment (for remedial, make-up, accommodations)
+-- allow_retake = 1 means ONLY this student may retake (teacher remedial list).
 CREATE TABLE IF NOT EXISTS exam_students (
   exam_id INT NOT NULL,
   student_id INT NOT NULL,
   assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  allow_retake TINYINT(1) NOT NULL DEFAULT 0,
   PRIMARY KEY (exam_id, student_id),
   CONSTRAINT fk_exam_students_exam FOREIGN KEY (exam_id) REFERENCES exams(id) ON DELETE CASCADE,
   CONSTRAINT fk_exam_students_student FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE

@@ -48,6 +48,7 @@ CREATE TABLE IF NOT EXISTS exam_students (
   exam_id INT NOT NULL REFERENCES exams(id) ON DELETE CASCADE,
   student_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  allow_retake SMALLINT NOT NULL DEFAULT 0,
   PRIMARY KEY (exam_id, student_id)
 );
 

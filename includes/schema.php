@@ -44,6 +44,22 @@ function ensure_schema(PDO $db): void {
     } else {
         try { $db->exec('ALTER TABLE attempts DROP INDEX uq_attempt'); } catch (Throwable $e) { /* doesn't exist */ }
     }
+    // v5h upgrade: per-student retake flag so "Allow retake" in the remedial
+    // modal applies ONLY to the selected list, not the whole exam.
+    // exams.allow_retake stays as legacy "allow all" fallback; new remedial
+    // assignments write exam_students.allow_retake instead.
+    try { $db->exec('ALTER TABLE exam_students ADD COLUMN allow_retake SMALLINT NOT NULL DEFAULT 0'); } catch (Throwable $e) { /* exists */ }
+    try {
+        // Backfill: exams that currently allow retake globally -> grant it to
+        // their assigned (remedial) students, so nobody loses access.
+        $db->exec('UPDATE exam_students SET allow_retake=1 WHERE exam_id IN (SELECT id FROM exams WHERE allow_retake<>0)');
+    } catch (Throwable $e) { /* backfill best-effort */ }
+    try {
+        // Convert global flag to per-student where an assignment list exists,
+        // so non-assigned students stop seeing Retake. Exams with allow_retake
+        // but zero assignments keep the global flag (intentional allow-all).
+        $db->exec('UPDATE exams SET allow_retake=0 WHERE allow_retake<>0 AND EXISTS (SELECT 1 FROM exam_students es WHERE es.exam_id=exams.id)');
+    } catch (Throwable $e) { /* best-effort */ }
     // v5e upgrade: section_teachers junction table for many-to-many section-teacher relationship.
     if ($driver === 'pgsql') {
         try { $db->exec('CREATE TABLE IF NOT EXISTS section_teachers (section_id INT NOT NULL REFERENCES sections(id) ON DELETE CASCADE, teacher_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE, assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (section_id, teacher_id))'); } catch (Throwable $e) { /* exists */ }
@@ -84,4 +100,37 @@ function ensure_schema(PDO $db): void {
     } else {
         try { $db->exec('CREATE TABLE IF NOT EXISTS sessions (id VARCHAR(128) NOT NULL PRIMARY KEY, user_id INT NULL, data TEXT NOT NULL, last_activity INT NOT NULL, INDEX idx_sessions_last_activity (last_activity)) ENGINE=InnoDB'); } catch (Throwable $e) { /* exists */ }
     }
+}
+
+// Lightweight runtime migration for live deployments (install.php won't be
+// re-run). Ensures exam_students.allow_retake exists and converts any stale
+// global exams.allow_retake into per-student grants. Safe to call on every
+// request: static guard + exception-tolerant.
+function ensure_per_student_retake(): void {
+    static $done = false;
+    if ($done) return;
+    $done = true;
+    try {
+        $db = db();
+        try { $db->exec('ALTER TABLE exam_students ADD COLUMN allow_retake SMALLINT NOT NULL DEFAULT 0'); } catch (Throwable $e) { /* exists */ }
+        try {
+            $db->exec('UPDATE exam_students SET allow_retake=1 WHERE exam_id IN (SELECT id FROM exams WHERE allow_retake<>0)');
+        } catch (Throwable $e) { /* best-effort */ }
+        try {
+            $db->exec('UPDATE exams SET allow_retake=0 WHERE allow_retake<>0 AND EXISTS (SELECT 1 FROM exam_students es WHERE es.exam_id=exams.id)');
+        } catch (Throwable $e) { /* best-effort */ }
+    } catch (Throwable $e) { /* DB unavailable — page will handle */ }
+}
+
+// Returns true when the per-student retake column is usable.
+function has_per_student_retake(): bool {
+    static $has = null;
+    if ($has !== null) return $has;
+    try {
+        db()->query('SELECT allow_retake FROM exam_students LIMIT 1');
+        $has = true;
+    } catch (Throwable $e) {
+        $has = false;
+    }
+    return $has;
 }
