@@ -90,13 +90,17 @@ include __DIR__ . '/includes/header.php';
   </form>
 </div>
 <?php else: ?>
-<div class="card"><a class="btn" href="teacher_exams.php?action=new">+ Create Exam</a></div>
+<div class="card" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+  <a class="btn" href="teacher_exams.php?action=new">+ Create Exam</a>
+  <input type="text" id="exam-search" placeholder="Search exams (title, section, status)..." style="flex:1;min-width:200px" autocomplete="off">
+</div>
 <?php endif; ?>
 
 <div class="card"><div class="table-wrap"><table>
   <tr><th>Exam</th><th>Section</th><th>Qs</th><th>Takers</th><th>Status</th><th>Actions</th></tr>
+  <tbody id="exams-tbody">
   <?php foreach ($exams as $x): ?>
-  <tr>
+  <tr class="exam-row">
     <td><b><?= e($x['title']) ?></b><br><small class="hint"><?= e(mb_strimwidth($x['description'] ?? '', 0, 80, '…')) ?> · <?= $x['time_limit_minutes'] ?> min</small></td>
     <td><?= e($x['section_name'] ?? 'All') ?></td><td><?= $x['qcount'] ?></td><td><?= $x['takers'] ?></td>
     <td><span class="badge b-<?= e($x['status']) ?>"><?= e($x['status']) ?></span></td>
@@ -113,6 +117,32 @@ include __DIR__ . '/includes/header.php';
     </div></td>
   </tr>
   <?php endforeach; ?>
-  <?php if (!$exams): ?><tr><td colspan="6" class="hint">No exams yet. Click Create Exam.</td></tr><?php endif; ?>
+  <?php if (!$exams): ?><tr class="exam-empty"><td colspan="6" class="hint">No exams yet. Click Create Exam.</td></tr><?php endif; ?>
+  <tr id="exams-nomatch" style="display:none"><td colspan="6" class="hint">No exams match your search.</td></tr>
+  </tbody>
 </table></div></div>
+<script>
+// Live search: filter exam rows while typing
+(function () {
+  var input = document.getElementById('exam-search');
+  var rows = document.querySelectorAll('#exams-tbody tr.exam-row');
+  var nomatch = document.getElementById('exams-nomatch');
+  if (!input || !rows.length) return;
+  var timer;
+  input.addEventListener('input', function () {
+    clearTimeout(timer);
+    timer = setTimeout(function () {
+      var term = input.value.toLowerCase().trim();
+      var shown = 0;
+      rows.forEach(function (tr) {
+        var text = ((tr.cells[0].textContent || '') + ' ' + (tr.cells[1].textContent || '') + ' ' + (tr.cells[4].textContent || '')).toLowerCase();
+        var match = term === '' || text.indexOf(term) !== -1;
+        tr.style.display = match ? '' : 'none';
+        if (match) shown++;
+      });
+      if (nomatch) nomatch.style.display = (term !== '' && shown === 0) ? '' : 'none';
+    }, 120);
+  });
+})();
+</script>
 <?php include __DIR__ . '/includes/footer.php'; ?>
