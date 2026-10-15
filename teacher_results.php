@@ -360,7 +360,7 @@ foreach ($exams as $x) { if ((int)$x['id'] === $sel) { $selTitle = $x['title']; 
     </select>
     <button class="btn" type="submit">View</button>
     <?php if ($best_rows): ?><a class="btn ghost" href="teacher_summary_download.php?exam_id=<?= $sel ?>">⬇ Download Summary (PDF)</a><?php endif; ?>
-    <?php if ($failed_students): ?>
+    <?php if ($failed_students || !empty($assigned_list) || !empty($sel_allow_global)): ?>
     <button type="button" class="btn ok" onclick="openRemedialModal()">🩺 Remedial</button>
     <?php endif; ?>
     <?php if ($best_rows): ?>
@@ -422,79 +422,6 @@ foreach ($exams as $x) { if ((int)$x['id'] === $sel) { $selTitle = $x['title']; 
   <?php endforeach; ?>
 </table></div></div>
 <?php endif; ?>
-<?php if ($sel): ?>
-<div class="card no-print" id="retake-access">
-  <h3 style="margin-top:0">🛑 Remedial / Retake access <small class="hint">— cancel to remove the Retake button on student side</small></h3>
-  <?php if ($sel_allow_global): ?>
-    <p class="hint" style="color:var(--bad)">⚠️ This exam still allows retake <b>for everyone</b> (legacy global flag). Cancel it below so only your selected list can retake.</p>
-  <?php endif; ?>
-  <?php if ($assigned_list): ?>
-  <p class="hint" style="margin:4px 0">Only students below with <b>Retake: Yes</b> see the Retake button. Cancelling hides it immediately (student page refresh).</p>
-  <div class="table-wrap"><table>
-    <tr><th>Student</th><th>Section</th><th>Taken?</th><th>Retake?</th><th></th></tr>
-    <?php foreach ($assigned_list as $al): ?>
-    <tr>
-      <td><?= e($al['fullname']) ?></td>
-      <td><?= e($al['section_name'] ?? '—') ?></td>
-      <td><?= $al['done_id'] ? '<span class="badge b-published">Taken ✓</span>' : '<span class="hint">Not yet</span>' ?></td>
-      <td><?= !empty($al['allow_retake']) ? '<span class="badge b-published">Yes</span>' : '<span class="hint">No</span>' ?></td>
-      <td><div class="btnrow" style="margin:0;gap:4px">
-        <?php if (!empty($al['allow_retake'])): ?>
-        <form method="post" action="teacher_results.php?exam_id=<?= $sel ?>" style="margin:0" onsubmit="return confirm('Cancel retake for this student? The Retake button will disappear on their side.');">
-          <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
-          <input type="hidden" name="action" value="retake_access">
-          <input type="hidden" name="op" value="revoke_one">
-          <input type="hidden" name="target_exam_id" value="<?= $sel ?>">
-          <input type="hidden" name="student_id" value="<?= (int)$al['student_id'] ?>">
-          <button class="btn small danger" type="submit">Cancel retake</button>
-        </form>
-        <?php else: ?>
-        <form method="post" action="teacher_results.php?exam_id=<?= $sel ?>" style="margin:0">
-          <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
-          <input type="hidden" name="action" value="retake_access">
-          <input type="hidden" name="op" value="grant_one">
-          <input type="hidden" name="target_exam_id" value="<?= $sel ?>">
-          <input type="hidden" name="student_id" value="<?= (int)$al['student_id'] ?>">
-          <button class="btn small ok" type="submit">Allow retake</button>
-        </form>
-        <?php endif; ?>
-        <form method="post" action="teacher_results.php?exam_id=<?= $sel ?>" style="margin:0" onsubmit="return confirm('Remove this student from the remedial list entirely?');">
-          <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
-          <input type="hidden" name="action" value="retake_access">
-          <input type="hidden" name="op" value="remove_one">
-          <input type="hidden" name="target_exam_id" value="<?= $sel ?>">
-          <input type="hidden" name="student_id" value="<?= (int)$al['student_id'] ?>">
-          <button class="btn small ghost" type="submit">Remove</button>
-        </form>
-      </div></td>
-    </tr>
-    <?php endforeach; ?>
-  </table></div>
-  <div class="btnrow">
-    <form method="post" action="teacher_results.php?exam_id=<?= $sel ?>" style="margin:0" onsubmit="return confirm('Cancel ALL retakes for this exam? No student will see Retake.');">
-      <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
-      <input type="hidden" name="action" value="retake_access">
-      <input type="hidden" name="op" value="revoke_all">
-      <input type="hidden" name="target_exam_id" value="<?= $sel ?>">
-      <button class="btn danger" type="submit">Cancel all retakes</button>
-    </form>
-  </div>
-  <?php else: ?>
-  <p class="hint">No students on the remedial list for this exam yet. Use 🩺 Remedial above to assign. <?php if ($sel_allow_global): ?>Global retake is ON — use Cancel all to turn it off.<?php endif; ?></p>
-  <?php if ($sel_allow_global): ?>
-  <div class="btnrow">
-    <form method="post" action="teacher_results.php?exam_id=<?= $sel ?>" style="margin:0" onsubmit="return confirm('Turn off global retake? No student will see Retake.');">
-      <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
-      <input type="hidden" name="action" value="retake_access">
-      <input type="hidden" name="op" value="revoke_all">
-      <input type="hidden" name="target_exam_id" value="<?= $sel ?>">
-      <button class="btn danger" type="submit">Turn off retake for all</button>
-    </form>
-  </div>
-  <?php endif; ?>
-  <?php endif; ?>
-</div>
-<?php endif; ?>
 <div id="remedial-modal" class="modal" style="display:none">
   <div class="modal-backdrop" onclick="closeRemedialModal()"></div>
   <div class="modal-content card" style="max-width:700px;width:90%;max-height:90vh;overflow:auto" onclick="event.stopPropagation()">
@@ -526,6 +453,78 @@ foreach ($exams as $x) { if ((int)$x['id'] === $sel) { $selTitle = $x['title']; 
         <button type="button" class="btn ghost" onclick="closeRemedialModal()">Cancel</button>
       </div>
     </form>
+    <hr style="margin:16px 0;border:none;border-top:1px solid var(--line)">
+    <div id="retake-access">
+      <h3 style="margin:0">🛑 Remedial / Retake access <small class="hint">— cancel to remove the Retake button on student side</small></h3>
+      <?php if ($sel_allow_global): ?>
+        <p class="hint" style="color:var(--bad)">⚠️ This exam still allows retake <b>for everyone</b> (legacy global flag). Cancel it below so only your selected list can retake.</p>
+      <?php endif; ?>
+      <?php if ($assigned_list): ?>
+      <p class="hint" style="margin:4px 0">Only students below with <b>Retake: Yes</b> see the Retake button. Cancelling hides it immediately.</p>
+      <div style="max-height:220px;overflow:auto;border:1px solid var(--line);border-radius:8px">
+      <table style="width:100%;font-size:.85rem">
+        <tr><th style="text-align:left;padding:6px">Student</th><th style="padding:6px">Retake?</th><th style="padding:6px"></th></tr>
+        <?php foreach ($assigned_list as $al): ?>
+        <tr style="border-top:1px solid var(--line)">
+          <td style="padding:6px"><?= e($al['fullname']) ?> <small class="hint">(<?= e($al['section_name'] ?? '—') ?> · <?= $al['done_id'] ? 'Taken ✓' : 'Not yet' ?>)</small></td>
+          <td style="padding:6px;text-align:center"><?= !empty($al['allow_retake']) ? '<span class="badge b-published">Yes</span>' : '<span class="hint">No</span>' ?></td>
+          <td style="padding:6px"><div class="btnrow" style="margin:0;gap:4px;justify-content:flex-end">
+            <?php if (!empty($al['allow_retake'])): ?>
+            <form method="post" action="teacher_results.php?exam_id=<?= $sel ?>" style="margin:0" onsubmit="return confirm('Cancel retake for this student? The Retake button will disappear on their side.');">
+              <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
+              <input type="hidden" name="action" value="retake_access">
+              <input type="hidden" name="op" value="revoke_one">
+              <input type="hidden" name="target_exam_id" value="<?= $sel ?>">
+              <input type="hidden" name="student_id" value="<?= (int)$al['student_id'] ?>">
+              <button class="btn small danger" type="submit">Cancel retake</button>
+            </form>
+            <?php else: ?>
+            <form method="post" action="teacher_results.php?exam_id=<?= $sel ?>" style="margin:0">
+              <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
+              <input type="hidden" name="action" value="retake_access">
+              <input type="hidden" name="op" value="grant_one">
+              <input type="hidden" name="target_exam_id" value="<?= $sel ?>">
+              <input type="hidden" name="student_id" value="<?= (int)$al['student_id'] ?>">
+              <button class="btn small ok" type="submit">Allow retake</button>
+            </form>
+            <?php endif; ?>
+            <form method="post" action="teacher_results.php?exam_id=<?= $sel ?>" style="margin:0" onsubmit="return confirm('Remove this student from the remedial list entirely?');">
+              <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
+              <input type="hidden" name="action" value="retake_access">
+              <input type="hidden" name="op" value="remove_one">
+              <input type="hidden" name="target_exam_id" value="<?= $sel ?>">
+              <input type="hidden" name="student_id" value="<?= (int)$al['student_id'] ?>">
+              <button class="btn small ghost" type="submit">Remove</button>
+            </form>
+          </div></td>
+        </tr>
+        <?php endforeach; ?>
+      </table>
+      </div>
+      <div class="btnrow">
+        <form method="post" action="teacher_results.php?exam_id=<?= $sel ?>" style="margin:0" onsubmit="return confirm('Cancel ALL retakes for this exam? No student will see Retake.');">
+          <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
+          <input type="hidden" name="action" value="retake_access">
+          <input type="hidden" name="op" value="revoke_all">
+          <input type="hidden" name="target_exam_id" value="<?= $sel ?>">
+          <button class="btn small danger" type="submit">Cancel all retakes</button>
+        </form>
+      </div>
+      <?php else: ?>
+      <p class="hint">No students on the remedial list yet — assign above. <?php if ($sel_allow_global): ?>Global retake is ON — use below to turn it off.<?php endif; ?></p>
+      <?php if ($sel_allow_global): ?>
+      <div class="btnrow">
+        <form method="post" action="teacher_results.php?exam_id=<?= $sel ?>" style="margin:0" onsubmit="return confirm('Turn off global retake? No student will see Retake.');">
+          <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
+          <input type="hidden" name="action" value="retake_access">
+          <input type="hidden" name="op" value="revoke_all">
+          <input type="hidden" name="target_exam_id" value="<?= $sel ?>">
+          <button class="btn small danger" type="submit">Turn off retake for all</button>
+        </form>
+      </div>
+      <?php endif; ?>
+      <?php endif; ?>
+    </div>
   </div>
 </div>
 
