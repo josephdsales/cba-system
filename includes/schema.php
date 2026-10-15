@@ -134,3 +134,33 @@ function has_per_student_retake(): bool {
     }
     return $has;
 }
+
+// Fairness cap: remedial students (anyone on the teacher's exam_students list
+// for this exam) can only score up to the passing percent. E.g. passing 12/20,
+// remedial 17/20 -> stored as 12/20. Normal students (no assignment row) keep
+// their full score. Returns [score, pct, capped_bool].
+function apply_remedial_cap(float $score, float $total, float $passing_percent, bool $is_remedial): array {
+    $pct = $total > 0 ? round($score / $total * 100, 2) : 0;
+    if ($is_remedial && $pct > (float)$passing_percent) {
+        $pct = round((float)$passing_percent, 2);
+        $score = round($total * (float)$passing_percent / 100, 2);
+        // Drop trailing .0 for whole numbers (12.0 -> 12) to match attempt totals.
+        if ((float)$score == (int)$score) $score = (float)(int)$score;
+        return [$score, $pct, true];
+    }
+    return [$score, $pct, false];
+}
+
+// True when this student was assigned remedial for this exam (any row).
+function is_remedial_assignee(int $exam_id, int $student_id): bool {
+    try {
+        $st = db()->prepare('SELECT 1 FROM exam_students WHERE exam_id=? AND student_id=? LIMIT 1');
+        // LIMIT 1 fails on some MSSQL drivers; fallback without it.
+        try { $st->execute([$exam_id, $student_id]); }
+        catch (Throwable $e) {
+            $st = db()->prepare('SELECT 1 FROM exam_students WHERE exam_id=? AND student_id=?');
+            $st->execute([$exam_id, $student_id]);
+        }
+        return (bool)$st->fetchColumn();
+    } catch (Throwable $e) { return false; }
+}

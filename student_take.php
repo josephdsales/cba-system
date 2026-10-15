@@ -37,6 +37,7 @@ if (has_per_student_retake()) {
 }
 $allow_retake = !empty($exam['allow_retake']) || !empty($assigned_retake);
 $shuffle = !empty($exam['shuffle_questions']);
+$is_remedial_view = is_remedial_assignee($exam_id, (int)$user['id']);
 
 if ($attempt && $attempt['submitted_at'] !== null) {
     if (!$allow_retake) {
@@ -140,14 +141,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $score += $earned;
         $ins->execute([$attempt_id, $q['id'], $ans !== '' ? $ans : null, $correct ? 1 : 0, $earned]);
     }
-    $pct = $total > 0 ? round($score / $total * 100, 2) : 0;
+    // Fairness: remedial assignees are capped at the passing score.
+    // E.g. passing 12/20, remedial raw 17/20 -> stored 12/20.
+    $is_remedial = is_remedial_assignee($exam_id, (int)$user['id']);
+    [$score, $pct, $capped] = apply_remedial_cap((float)$score, (float)$total, (float)$exam['passing_percent'], $is_remedial);
     $st = db()->prepare('UPDATE attempts SET score=?, total=?, percentage=?, submitted_at=NOW(), needs_grading=? WHERE id=?');
     $st->execute([$score, $total, $pct, $needs_grading, $attempt_id]);
     if ($late) {
-        set_flash("Exam submitted (late). Your score: $score/$total ($pct%).");
+        set_flash("Exam submitted (late). Your score: $score/$total ($pct%)." . ($capped ? ' Remedial capped at passing score.' : ''));
     } else {
-        set_flash($needs_grading ? "Exam submitted. Partial score: $score/$total — essay answers are for checking."
-            : "Exam submitted. Your score: $score/$total ($pct%).");
+        set_flash($needs_grading ? "Exam submitted. Partial score: $score/$total — essay answers are for checking." . ($capped ? ' Remedial will be capped at passing.' : '')
+            : "Exam submitted. Your score: $score/$total ($pct%)." . ($capped ? ' Remedial capped at passing score.' : ''));
     }
     header('Location: student_scores.php'); exit;
 }
@@ -158,7 +162,7 @@ include __DIR__ . '/includes/header.php';
 <div class="card">
   <p class="hint"><?= e($exam['description'] ?? '') ?></p>
   <span class="timer" id="exam-timer" data-seconds="<?= $remain ?>">⏳ --:--</span>
-  <p class="hint">One submission only. Timer auto-submits when time runs out.<?= $shuffle ? ' Questions are shuffled.' : '' ?><?= $allow_retake ? ' Retake allowed.' : '' ?></p>
+  <p class="hint">One submission only. Timer auto-submits when time runs out.<?= $shuffle ? ' Questions are shuffled.' : '' ?><?= $allow_retake ? ' Retake allowed.' : '' ?><?= !empty($is_remedial_view) ? ' Remedial score capped at passing (' . e($exam['passing_percent']) . '%).' : '' ?></p>
 </div>
 <form method="post" id="exam-form">
   <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">

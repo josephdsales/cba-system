@@ -3,12 +3,13 @@
 // awaiting checking, per essay awards points, then finalizes the score.
 require __DIR__ . '/includes/config.php';
 require __DIR__ . '/includes/auth.php';
+require_once __DIR__ . '/includes/schema.php';
 $user = require_role('teacher');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     check_csrf();
     $attempt_id = (int)($_POST['attempt_id'] ?? 0);
-    $st = db()->prepare("SELECT a.*, e.teacher_id FROM attempts a JOIN exams e ON e.id=a.exam_id
+    $st = db()->prepare("SELECT a.*, e.teacher_id, e.passing_percent FROM attempts a JOIN exams e ON e.id=a.exam_id
         WHERE a.id=? AND e.teacher_id=? AND a.submitted_at IS NOT NULL");
     $st->execute([$attempt_id, $user['id']]);
     $attempt = $st->fetch();
@@ -25,10 +26,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $st = db()->prepare('SELECT COALESCE(SUM(points_earned),0) s FROM answers WHERE attempt_id=?');
     $st->execute([$attempt_id]); $score = $st->fetch()['s'];
     $total = (float)$attempt['total'];
-    $pct = $total > 0 ? round($score / $total * 100, 2) : 0;
+    // Fairness: remedial assignees capped at passing (e.g. raw 17/20 -> 12/20).
+    $is_remedial = is_remedial_assignee((int)$attempt['exam_id'], (int)$attempt['student_id']);
+    [$score, $pct, $capped] = apply_remedial_cap((float)$score, (float)$total, (float)($attempt['passing_percent'] ?? 50), $is_remedial);
     $st = db()->prepare('UPDATE attempts SET score=?, percentage=?, needs_grading=0 WHERE id=?');
     $st->execute([$score, $pct, $attempt_id]);
-    set_flash("Grading saved. Final score: $score/$total ($pct%).");
+    set_flash("Grading saved. Final score: $score/$total ($pct%)." . ($capped ? ' Remedial capped at passing score.' : ''));
     header('Location: teacher_grade.php'); exit;
 }
 

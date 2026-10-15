@@ -97,6 +97,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 if ($use_col) db()->prepare('UPDATE exam_students SET allow_retake=0 WHERE exam_id=?')->execute([$target_exam_id]);
                 db()->prepare('UPDATE exams SET allow_retake=0 WHERE id=?')->execute([$target_exam_id]);
                 set_flash('All retakes cancelled for this exam. No student sees Retake now.');
+            } elseif ($op === 'cap_existing') {
+                // One-click fairness fix: cap already-stored remedial scores at passing.
+                // Only touches assignees scoring above passing; normal students untouched.
+                $est = db()->prepare('SELECT passing_percent FROM exams WHERE id=?');
+                $est->execute([$target_exam_id]);
+                $pass = (float)($est->fetchColumn() ?? 50);
+                $lst = db()->prepare("SELECT a.id, a.total FROM attempts a
+                    WHERE a.exam_id=? AND a.submitted_at IS NOT NULL AND a.percentage > ?
+                    AND EXISTS (SELECT 1 FROM exam_students es WHERE es.exam_id=a.exam_id AND es.student_id=a.student_id)");
+                $lst->execute([$target_exam_id, $pass]);
+                $over = $lst->fetchAll();
+                $n = 0;
+                if ($over) {
+                    $upd = db()->prepare('UPDATE attempts SET score=?, percentage=? WHERE id=?');
+                    foreach ($over as $o) {
+                        $total = (float)$o['total'];
+                        $ns = round($total * $pass / 100, 2);
+                        if ((float)$ns == (int)$ns) $ns = (float)(int)$ns;
+                        $upd->execute([$ns, round($pass, 2), $o['id']]);
+                        $n++;
+                    }
+                }
+                set_flash($n ? "Capped $n remedial score(s) at passing ($pass%)." : 'Nothing to cap — no remedial scores above passing.');
             } else {
                 set_flash('Invalid request.');
             }
@@ -508,6 +531,13 @@ foreach ($exams as $x) { if ((int)$x['id'] === $sel) { $selTitle = $x['title']; 
           <input type="hidden" name="op" value="revoke_all">
           <input type="hidden" name="target_exam_id" value="<?= $sel ?>">
           <button class="btn small danger" type="submit">Cancel all retakes</button>
+        </form>
+        <form method="post" action="teacher_results.php?exam_id=<?= $sel ?>" style="margin:0" onsubmit="return confirm('Cap all existing remedial scores above passing down to passing? E.g. 17/20 -> 12/20. Normal students untouched.');">
+          <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
+          <input type="hidden" name="action" value="retake_access">
+          <input type="hidden" name="op" value="cap_existing">
+          <input type="hidden" name="target_exam_id" value="<?= $sel ?>">
+          <button class="btn small ok" type="submit">Cap old scores at passing</button>
         </form>
       </div>
       <?php else: ?>
