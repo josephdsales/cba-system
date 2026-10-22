@@ -1,7 +1,7 @@
 <?php
 // Minimal pure-PHP PDF writer (no libraries needed): A4, Helvetica.
 // Used for direct "Download as PDF" (bypasses the print dialog).
-// Supports text lines + bordered tables (with header repeat on page breaks).
+// Supports text lines + bordered tables.
 class MiniPDF {
     private $pages = [];
     private $cur = [];
@@ -29,7 +29,7 @@ class MiniPDF {
         for ($i = 0; $i < $n; $i++) $this->addLine(' ');
     }
 
-    // Bordered table. $widths must sum to <= 495. Header repeats after page breaks.
+    // Bordered table. $widths must sum to <= 495. Header is drawn once (not repeated on page breaks).
     public function table(array $headers, array $widths, array $rows, int $size = 9): void {
         $rowH = 16;
         $total = array_sum($widths);
@@ -53,20 +53,9 @@ class MiniPDF {
             }
             $this->y -= $rowH;
         };
-        // caller handles repeat: draw header, then rows (re-draw header after breaks)
         $drawRow($headers, true, 0.9);
-        $headerCopy = [$headers, true, 0.9];
-        $startCount = count($this->pages);
         foreach ($rows as $r) {
-            $before = count($this->pages);
             $drawRow(array_values($r), false, null);
-            if (count($this->pages) > $before) {
-                // page broke mid-table: re-draw header at top of new page.
-                // (rebuild: move last row's records after a fresh header)
-                $lastRow = array_splice($this->cur, -count($widths) * 2);
-                $drawRow($headerCopy[0], true, 0.9);
-                foreach ($lastRow as $rec) $this->cur[] = $rec;
-            }
         }
     }
 
