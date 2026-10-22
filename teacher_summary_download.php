@@ -12,7 +12,7 @@ $st->execute([$exam_id, $user['id']]);
 $exam = $st->fetch();
 if (!$exam) { http_response_code(404); exit('Exam not found.'); }
 
-$st = db()->prepare("SELECT a.*, u.fullname, u.gender, s.name AS section_name
+$st = db()->prepare("SELECT a.*, u.fullname, u.lastname, u.firstname, u.gender, s.name AS section_name
     FROM attempts a
     JOIN users u ON u.id=a.student_id
     LEFT JOIN sections s ON s.id=u.section_id
@@ -22,10 +22,24 @@ $st = db()->prepare("SELECT a.*, u.fullname, u.gender, s.name AS section_name
         WHERE exam_id=? AND submitted_at IS NOT NULL
         GROUP BY student_id
     ) best ON best.student_id=a.student_id AND best.max_pct=a.percentage
-    WHERE a.exam_id=? AND a.submitted_at IS NOT NULL
-    ORDER BY CASE u.gender WHEN 'Male' THEN 0 WHEN 'Female' THEN 1 ELSE 2 END, u.lastname, u.firstname, u.fullname");
+    WHERE a.exam_id=? AND a.submitted_at IS NOT NULL");
 $st->execute([$exam_id, $exam_id]);
 $rows = $st->fetchAll();
+
+// Sort in PHP (not SQL) so ordering is case-insensitive —
+// ALL CAPS / lowercase names would otherwise group separately
+// depending on the database collation.
+$gorder = ['Male' => 0, 'Female' => 1];
+usort($rows, function ($a, $b) use ($gorder) {
+    $ga = $gorder[$a['gender'] ?? ''] ?? 2;
+    $gb = $gorder[$b['gender'] ?? ''] ?? 2;
+    if ($ga !== $gb) return $ga <=> $gb;
+    $an = (($a['lastname'] ?? '') !== '' ? $a['lastname'] . ' ' . $a['firstname'] : $a['fullname']);
+    $bn = (($b['lastname'] ?? '') !== '' ? $b['lastname'] . ' ' . $b['firstname'] : $b['fullname']);
+    $c = strnatcasecmp($an, $bn);
+    if ($c === 0) $c = strnatcasecmp($a['fullname'] ?? '', $b['fullname'] ?? '');
+    return $c;
+});
 
 $pdf = new MiniPDF();
 $pdf->setFooter('DONA JUANA CHIOCO NATIONAL HIGH SCHOOL - Computer-based Assessment - JDS');
