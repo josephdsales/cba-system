@@ -428,10 +428,15 @@ foreach ($exams as $x) { if ((int)$x['id'] === $sel) { $selTitle = $x['title']; 
 </div>
 <?php endif; ?>
 <?php if ($best_rows): ?>
-<div class="card"><div class="table-wrap"><table>
+<div class="card">
+  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+    <input type="text" id="result-search" placeholder="🔍 Search student name..." style="flex:1;min-width:220px" oninput="filterResultRows()">
+    <small class="hint" id="result-count"><?= count($best_rows) ?> student(s)</small>
+  </div>
+  <div class="table-wrap"><table id="results-table">
   <tr><th>#</th><th><?= sort_link('Student', 'name') ?></th><th>Section</th><th><?= sort_link('Score', 'score') ?></th><th><?= sort_link('%', 'score') ?></th><th><?= sort_link('Submitted', 'date') ?></th><th></th></tr>
   <?php $i = 1; foreach ($best_rows as $r): ?>
-  <tr><td><?= $i++ ?></td><td><?= e($r['fullname']) ?></td><td><?= e($r['section_name'] ?? '—') ?></td>
+  <tr><td><?= $i++ ?></td><td class="student-name"><?= e($r['fullname']) ?></td><td><?= e($r['section_name'] ?? '—') ?></td>
   <td><?= e($r['score']) ?>/<?= e($r['total']) ?></td><td><b><?= e($r['percentage']) ?>%</b></td><td><?= e(date('m-d-Y H:i:s', strtotime($r['submitted_at']))) ?></td>
   <td><div class="btnrow" style="margin:0;gap:4px">
     <a class="btn small ghost" href="teacher_review.php?attempt_id=<?= $r['id'] ?>">Review</a>
@@ -443,7 +448,24 @@ foreach ($exams as $x) { if ((int)$x['id'] === $sel) { $selTitle = $x['title']; 
     </form>
   </div></td></tr>
   <?php endforeach; ?>
-</table></div></div>
+  </table></div>
+  <p class="hint" id="no-results" style="display:none;text-align:center;padding:12px">No students match your search.</p>
+</div>
+<script>
+function filterResultRows() {
+  var q = document.getElementById('result-search').value.toLowerCase().trim();
+  var rows = document.querySelectorAll('#results-table tr:not(:first-child)');
+  var shown = 0;
+  rows.forEach(function (row) {
+    var name = (row.querySelector('.student-name')?.textContent || '').toLowerCase();
+    var match = name.indexOf(q) !== -1;
+    row.style.display = match ? '' : 'none';
+    if (match) shown++;
+  });
+  document.getElementById('result-count').textContent = shown + ' student(s)';
+  document.getElementById('no-results').style.display = shown === 0 ? 'block' : 'none';
+}
+</script>
 <?php endif; ?>
 <div id="remedial-modal" class="modal" style="display:none">
   <div class="modal-backdrop" onclick="closeRemedialModal()"></div>
