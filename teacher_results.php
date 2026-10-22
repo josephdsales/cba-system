@@ -349,19 +349,19 @@ if ($sel && $best_rows) {
 $sort = $_GET['sort'] ?? 'score';
 if (!in_array($sort, ['score', 'date', 'name'], true)) $sort = 'score';
 $sdir = ($_GET['dir'] ?? 'desc') === 'asc' ? 'asc' : 'desc';
-if ($rows) {
-    usort($rows, function ($a, $b) use ($sort, $sdir) {
-        switch ($sort) {
-            case 'date': $c = strcmp($a['submitted_at'], $b['submitted_at']); break;
-            case 'name':
-                $an = ($a['lastname'] ?? '') !== '' ? $a['lastname'] . ' ' . $a['firstname'] : $a['fullname'];
-                $bn = ($b['lastname'] ?? '') !== '' ? $b['lastname'] . ' ' . $b['firstname'] : $b['fullname'];
-                $c = strnatcasecmp($an, $bn); break;
-            default: $c = (float)$a['percentage'] <=> (float)$b['percentage'];
-        }
-        return $sdir === 'asc' ? $c : -$c;
-    });
-}
+$cmp = function ($a, $b) use ($sort, $sdir) {
+    switch ($sort) {
+        case 'date': $c = strcmp($a['submitted_at'], $b['submitted_at']); break;
+        case 'name':
+            $an = ($a['lastname'] ?? '') !== '' ? $a['lastname'] . ' ' . $a['firstname'] : $a['fullname'];
+            $bn = ($b['lastname'] ?? '') !== '' ? $b['lastname'] . ' ' . $b['firstname'] : $b['fullname'];
+            $c = strnatcasecmp($an, $bn); break;
+        default: $c = (float)$a['percentage'] <=> (float)$b['percentage'];
+    }
+    return $sdir === 'asc' ? $c : -$c;
+};
+if ($rows) usort($rows, $cmp);
+if ($best_rows) usort($best_rows, $cmp);
 function sort_link($label, $key) {
     global $sel, $topn, $sort, $sdir;
     if ($sort === $key) {
