@@ -356,7 +356,7 @@ if ($rows) {
             case 'name':
                 $an = ($a['lastname'] ?? '') !== '' ? $a['lastname'] . ' ' . $a['firstname'] : $a['fullname'];
                 $bn = ($b['lastname'] ?? '') !== '' ? $b['lastname'] . ' ' . $b['firstname'] : $b['fullname'];
-                $c = strcasecmp($an, $bn); break;
+                $c = strnatcasecmp($an, $bn); break;
             default: $c = (float)$a['percentage'] <=> (float)$b['percentage'];
         }
         return $sdir === 'asc' ? $c : -$c;
@@ -364,7 +364,11 @@ if ($rows) {
 }
 function sort_link($label, $key) {
     global $sel, $topn, $sort, $sdir;
-    $nd = ($sort === $key && $sdir === 'desc') ? 'asc' : 'desc';
+    if ($sort === $key) {
+        $nd = $sdir === 'desc' ? 'asc' : 'desc';
+    } else {
+        $nd = $key === 'name' ? 'asc' : 'desc';
+    }
     $arrow = $sort === $key ? ($sdir === 'desc' ? ' ▼' : ' ▲') : '';
     return '<a href="teacher_results.php?exam_id=' . $sel . '&topn=' . $topn . '&sort=' . $key . '&dir=' . $nd . '">' . e($label) . $arrow . '</a>';
 }
