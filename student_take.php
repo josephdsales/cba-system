@@ -201,9 +201,10 @@ include __DIR__ . '/includes/header.php';
                 if (!isset($s['step'])) $s['step'] = $idx + 1;
             }
             unset($s);
-            if ($shuffle) {
-                shuffle($steps);
-            }
+            // Always randomize arranging steps for students (deterministic per attempt & question)
+            $step_seed = (int)($attempt['shuffle_seed'] ?? mt_rand(1, 1000000)) + (int)$q['id'];
+            mt_srand($step_seed);
+            shuffle($steps);
         }
         $initial_order = [];
         if (is_array($steps) && !empty($steps)):
