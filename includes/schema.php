@@ -80,11 +80,12 @@ function ensure_schema(PDO $db): void {
     } catch (Throwable $e) { /* migration failed or no data */ }
     // v5g upgrade: add composite index on attempts(exam_id, student_id)
     try { $db->exec('CREATE INDEX idx_attempts_exam_student ON attempts(exam_id, student_id)'); } catch (Throwable $e) { /* exists */ }
+    try { $db->exec('ALTER TABLE questions ADD COLUMN steps_data TEXT'); } catch (Throwable $e) { /* exists */ }
     if ($driver === 'pgsql') {
         try { $db->exec('ALTER TABLE questions DROP CONSTRAINT IF EXISTS questions_qtype_check'); } catch (Throwable $e) {}
-        try { $db->exec("ALTER TABLE questions ADD CONSTRAINT questions_qtype_check CHECK (qtype IN ('mcq','truefalse','identification','essay'))"); } catch (Throwable $e) {}
+        try { $db->exec("ALTER TABLE questions ADD CONSTRAINT questions_qtype_check CHECK (qtype IN ('mcq','truefalse','identification','essay','arrangingsteps'))"); } catch (Throwable $e) {}
     } else {
-        try { $db->exec("ALTER TABLE questions MODIFY qtype ENUM('mcq','truefalse','identification','essay') NOT NULL DEFAULT 'mcq'"); } catch (Throwable $e) {}
+        try { $db->exec("ALTER TABLE questions MODIFY qtype ENUM('mcq','truefalse','identification','essay','arrangingsteps') NOT NULL DEFAULT 'mcq'"); } catch (Throwable $e) {}
     }
     try {
         if ($driver === 'pgsql') {

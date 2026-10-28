@@ -134,6 +134,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif ($q['qtype'] === 'truefalse') {
             $correct = (strtolower($ans) === strtolower($q['correct_answer']));
             $earned = $correct ? $q['points'] : 0;
+        } elseif ($q['qtype'] === 'arrangingsteps') {
+            $correct = ($ans === trim($q['correct_answer']));
+            $earned = $correct ? $q['points'] : 0;
         } else { // identification
             $correct = (strtolower($ans) === strtolower(trim($q['correct_answer'])));
             $earned = $correct ? $q['points'] : 0;
@@ -167,7 +170,7 @@ include __DIR__ . '/includes/header.php';
 <form method="post" id="exam-form">
   <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
   <input type="hidden" name="exam_id" value="<?= $exam_id ?>">
-  <?php $i = 1; foreach ($questions as $q): ?>
+    <?php $i = 1; foreach ($questions as $q): ?>
   <div class="q">
     <h3><?= $i++ ?>. <?= e($q['question_text']) ?> <small class="hint">(<?= $q['points'] ?> pt)</small></h3>
     <?php if ($q['qtype'] === 'mcq'): ?>
@@ -181,6 +184,38 @@ include __DIR__ . '/includes/header.php';
       <label class="opt"><input type="radio" name="q_<?= $q['id'] ?>" value="False" required> False</label>
     <?php elseif ($q['qtype'] === 'essay'): ?>
       <textarea name="q_<?= $q['id'] ?>" placeholder="Write your answer here" required rows="5"></textarea>
+    <?php elseif ($q['qtype'] === 'arrangingsteps'): ?>
+      <div class="hint" style="margin-bottom:10px">Steps (drag or use ▲/▼ buttons to reorder into correct sequence):</div>
+      <div class="arranging-steps-container" data-question-id="<?= $q['id'] ?>" style="display:flex;flex-direction:column;gap:6px">
+        <?php
+        $steps = json_decode($q['steps_data'] ?? '[]', true);
+        if (is_array($steps) && !empty($steps)) {
+            foreach ($steps as $idx => &$s) {
+                if (!isset($s['step'])) $s['step'] = $idx + 1;
+            }
+            unset($s);
+            if ($shuffle) {
+                shuffle($steps);
+            }
+        }
+        $initial_order = [];
+        if (is_array($steps) && !empty($steps)):
+          foreach ($steps as $index => $step):
+            $orig_num = $step['step'] ?? ($index + 1);
+            $step_text = $step['text'] ?? '';
+            $initial_order[] = (string)$orig_num;
+        ?>
+          <div class="step-item" data-step="<?= $orig_num ?>" draggable="true" style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:#f8fafc;border:1px solid var(--line);border-radius:8px;cursor:grab;user-select:none">
+            <div><span class="step-text"><b><?= e($step_text) ?></b></span></div>
+            <div style="display:flex;gap:4px">
+              <button type="button" class="btn small ghost step-up" style="padding:2px 8px">▲</button>
+              <button type="button" class="btn small ghost step-down" style="padding:2px 8px">▼</button>
+            </div>
+          </div>
+        <?php endforeach; endif; ?>
+        <input type="hidden" name="q_<?= $q['id'] ?>" value="<?= implode('-', $initial_order) ?>" required>
+      </div>
+      <div class="hint" style="margin-top:5px; font-size:0.9em">Arrange steps in the correct chronological or logical order.</div>
     <?php else: ?>
       <input type="text" name="q_<?= $q['id'] ?>" placeholder="Type your answer" required>
     <?php endif; ?>
@@ -195,5 +230,79 @@ include __DIR__ . '/includes/header.php';
     fetch(window.location.href, { method: 'HEAD', credentials: 'same-origin' });
   }, 300000);
 })();
+
+// Arranging steps: Drag & drop + Up/Down buttons + auto-update hidden input
+(function() {
+  document.addEventListener('DOMContentLoaded', function() {
+    function updateOrder(container) {
+      const items = Array.from(container.querySelectorAll('.step-item'));
+      const order = items.map(item => item.dataset.step).join('-');
+      const input = container.querySelector('input[type="hidden"][name^="q_"]');
+      if (input) input.value = order;
+    }
+
+    // Initialize all containers
+    document.querySelectorAll('.arranging-steps-container').forEach(function(container) {
+      updateOrder(container);
+
+      // Up/Down button handlers
+      container.addEventListener('click', function(e) {
+        const btn = e.target.closest('button');
+        if (!btn) return;
+        const item = btn.closest('.step-item');
+        if (!item) return;
+        if (btn.classList.contains('step-up')) {
+          const prev = item.previousElementSibling;
+          if (prev && prev.classList.contains('step-item')) {
+            item.parentNode.insertBefore(item, prev);
+            updateOrder(container);
+          }
+        } else if (btn.classList.contains('step-down')) {
+          const next = item.nextElementSibling;
+          if (next && next.classList.contains('step-item')) {
+            next.after(item);
+            updateOrder(container);
+          }
+        }
+      });
+    });
+
+    let draggedItem = null;
+    document.addEventListener('dragstart', function(e) {
+      const item = e.target.closest('.step-item');
+      if (item) {
+        draggedItem = item;
+        item.style.opacity = '0.5';
+      }
+    });
+    document.addEventListener('dragend', function(e) {
+      const item = e.target.closest('.step-item');
+      if (item) {
+        item.style.opacity = '';
+        draggedItem = null;
+      }
+    });
+    document.addEventListener('dragover', function(e) {
+      e.preventDefault();
+    });
+    document.addEventListener('drop', function(e) {
+      e.preventDefault();
+      if (draggedItem) {
+        const target = e.target.closest('.step-item');
+        if (target && draggedItem !== target) {
+          const container = target.parentNode;
+          const items = Array.from(container.querySelectorAll('.step-item'));
+          const draggedIndex = items.indexOf(draggedItem);
+          const targetIndex = items.indexOf(target);
+          if (draggedIndex < targetIndex) {
+            target.after(draggedItem);
+          } else {
+            target.before(draggedItem);
+          }
+          updateOrder(container);
+        }
+      }
+    });
+  });
+})();
 </script>
-<?php include __DIR__ . '/includes/footer.php'; ?>

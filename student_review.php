@@ -56,17 +56,51 @@ include __DIR__ . '/includes/header.php';
 ?>
 <div class="q">
   <h3><?= $i++ ?>. <?= e($q['question_text']) ?>
-    <?= $ok ? '<span class="badge b-published">✓ Correct</span>' : '<span class="badge b-closed">✗ Incorrect</span>' ?>
-    <small class="hint"><?= e($q['points_earned']) ?>/<?= e($q['points']) ?> pt(s)</small></h3>
+    <?php if ($q['qtype'] === 'mcq'): ?>
+      <span class="hint">[mcq]</span>
+    <?php elseif ($q['qtype'] === 'truefalse'): ?>
+      <span class="hint">[truefalse]</span>
+    <?php elseif ($q['qtype'] === 'identification'): ?>
+      <span class="hint">[identification]</span>
+    <?php elseif ($q['qtype'] === 'essay'): ?>
+      <span class="hint">[essay]</span>
+    <?php elseif ($q['qtype'] === 'arrangingsteps'): ?>
+      <span class="hint">[arrangingsteps]</span>
+    <?php endif; ?>
+  </h3>
   <?php if ($q['qtype'] === 'mcq'): ?>
     <?php foreach (['A' => $q['option_a'], 'B' => $q['option_b'], 'C' => $q['option_c'], 'D' => $q['option_d']] as $L => $opt): ?>
       <?php if ($opt !== null && $opt !== ''): ?>
-        <div class="opt" <?= strtoupper(substr($mine, 0, 1)) === $L ? 'style="border-width:2px;font-weight:700"' : '' ?>>
-          <b><?= $L ?>.</b> <?= e($opt) ?>
-          <?= strtoupper(substr($mine, 0, 1)) === $L ? '<small class="hint">— your answer</small>' : '' ?>
-        </div>
-      <?php endif; ?>
+      <div class="opt" <?= strtoupper(substr($mine, 0, 1)) === $L ? 'style="border-width:2px;font-weight:700"' : '' ?>>
+        <b><?= $L ?>.</b> <?= e($opt) ?>
+        <?= strtoupper(substr($mine, 0, 1)) === $L ? '<small class="hint">— your answer</small>' : '' ?>
+      </div>
     <?php endforeach; ?>
+  <?php elseif ($q['qtype'] === 'arrangingsteps'): ?>
+    <p style="margin:6px 0"><b>Steps (your answer):</b></p>
+    <?php
+    $student_order = [];
+    if (!empty($mine)) {
+      $student_order = explode('-', $mine);
+    }
+    if (is_array($student_order) && !empty($student_order)):
+      foreach ($student_order as $index => $step_num):
+        $step_text = '';
+        $steps = json_decode($q['steps_data'] ?? '[]', true);
+        if (is_array($steps)) {
+          foreach ($steps as $s) {
+            if (($s['step'] ?? null) == $step_num || ($s['text'] ?? '') === $step_num) {
+              $step_text = $s['text'] ?? '';
+              break;
+            }
+          }
+        }
+    ?>
+      <div class="opt">
+        <b>Step <?= $step_num ?>:</b> <?= e($step_text) ?>
+      </div>
+    <?php endforeach; endif; ?>
+    <?php if (empty($mine)) : ?><div class="opt"><i>No answer provided</i></div><?php endif; ?>
   <?php else: ?>
     <p style="margin:6px 0">Your answer: <b><?= e($mine !== '' && $mine !== null ? $mine : '(blank)') ?></b></p>
     <?php if ($q['qtype'] === 'essay' && !empty($attempt['needs_grading'])): ?><p class="hint">For checking — your teacher hasn't scored this yet.</p><?php endif; ?>

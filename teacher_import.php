@@ -67,8 +67,54 @@ function parse_blocks(string $text): array {
     }
     $out = [];
     foreach ($blocks as $lines) {
+        // Check for arranging steps format first
+        $step_lines = [];
+        $non_step_lines = [];
+        $is_arranging = false;
+        foreach ($lines as $ln) {
+            if (preg_match('/^type\s*[:\-]\s*(arrangingsteps|arranging steps)/i', $ln)) {
+                $is_arranging = true;
+            } elseif (preg_match('/^step\s*(\d+)\s*[:\-\.]\s*(.+)$/i', $ln, $sm)) {
+                $step_lines[(int)$sm[1]] = trim($sm[2]);
+                $is_arranging = true;
+            } else {
+                $non_step_lines[] = $ln;
+            }
+        }
+
+        if ($is_arranging && !empty($step_lines)) {
+            ksort($step_lines);
+            $steps_arr = [];
+            $order_arr = [];
+            $idx = 1;
+            foreach ($step_lines as $step_num => $step_text) {
+                $steps_arr[] = ['step' => $idx, 'text' => $step_text];
+                $order_arr[] = (string)$idx;
+                $idx++;
+            }
+            $q = [
+                'qtype' => 'arrangingsteps',
+                'steps_data' => json_encode($steps_arr),
+                'answer' => implode('-', $order_arr),
+                'points' => count($steps_arr),
+                'a' => null, 'b' => null, 'c' => null, 'd' => null
+            ];
+            $qtext_lines = [];
+            foreach ($non_step_lines as $nsl) {
+                if (!preg_match('/^type\s*[:\-]/i', $nsl) && !preg_match('/^points?\s*[:\-]/i', $nsl)) {
+                    $qtext_lines[] = preg_replace('/^(Q\s*\d+(?:\s*-\s*Q?\s*\d+)?|Question\s*\d+|\d+)\s*[\.\)\:\-]\s*/i', '', $nsl);
+                }
+            }
+            $q['text'] = trim(implode(' ', $qtext_lines));
+            if ($q['text'] === '') {
+                $q['text'] = 'Arrange the following steps in correct order';
+            }
+            $out[] = $q;
+            continue;
+        }
+
         $q = ['text' => '', 'a' => null, 'b' => null, 'c' => null, 'd' => null,
-              'answer' => '', 'points' => 1, 'qtype' => 'mcq'];
+              'answer' => '', 'points' => 1, 'qtype' => 'mcq', 'steps_data' => null];
         $qlines = [];
         foreach ($lines as $ln) {
             if (preg_match('/^\(?([A-Da-d])[\)\.\:]\s*(.+)$/', $ln, $m) && !preg_match('/^answer/i', $ln)) {
@@ -128,10 +174,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         $st = db()->prepare('SELECT COALESCE(MAX(sort_order),0) m FROM questions WHERE exam_id=?');
         $st->execute([$exam_id]); $n = (int)$st->fetch()['m'];
-        $ins = db()->prepare('INSERT INTO questions (exam_id, question_text, qtype, option_a, option_b, option_c, option_d, correct_answer, points, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+        $ins = db()->prepare('INSERT INTO questions (exam_id, question_text, qtype, option_a, option_b, option_c, option_d, steps_data, correct_answer, points, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
         foreach ($qs as $q) {
             $n++;
-            $ins->execute([$exam_id, $q['text'], $q['qtype'], $q['a'], $q['b'], $q['c'], $q['d'], $q['answer'], $q['points'], $n]);
+            $ins->execute([$exam_id, $q['text'], $q['qtype'], $q['a'] ?? null, $q['b'] ?? null, $q['c'] ?? null, $q['d'] ?? null, $q['steps_data'] ?? null, $q['answer'], $q['points'], $n]);
             $imported++;
         }
         set_flash("Imported $imported question(s) into '{$exam['title']}'.");

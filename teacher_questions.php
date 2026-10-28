@@ -21,23 +21,49 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $qid = (int)($_POST['qid'] ?? 0);
         $text = trim($_POST['question_text'] ?? '');
         $qtype = $_POST['qtype'] ?? 'mcq';
-        if (!in_array($qtype, ['mcq','truefalse','identification','essay'], true)) $qtype = 'mcq';
+        if (!in_array($qtype, ['mcq','truefalse','identification','essay','arrangingsteps'], true)) $qtype = 'mcq';
         $oa = trim($_POST['option_a'] ?? ''); $ob = trim($_POST['option_b'] ?? '');
         $oc = trim($_POST['option_c'] ?? ''); $od = trim($_POST['option_d'] ?? '');
-        $correct = trim($_POST['correct_answer'] ?? '');
+        $steps_data = trim($_POST['steps_data'] ?? '');
+        $correct_answer = trim($_POST['correct_answer'] ?? '');
         $points = max(1, (int)($_POST['points'] ?? 1));
-        if ($text === '' || ($correct === '' && $qtype !== 'essay')) set_flash('Question text and correct answer are required (essays need no answer).');
+        if ($text === '' || ($correct_answer === '' && $qtype !== 'essay' && $qtype !== 'arrangingsteps')) set_flash('Question text and correct answer are required (essays and arranging steps need no answer).');
         else {
-            if ($qtype === 'mcq') $correct = strtoupper(substr($correct, 0, 1));
+            if ($qtype === 'mcq') $correct_answer = strtoupper(substr($correct_answer, 0, 1));
+            if ($qtype === 'arrangingsteps') {
+                $decoded = json_decode($steps_data, true);
+                if (!is_array($decoded)) {
+                    $lines = array_filter(array_map('trim', explode("\n", $steps_data)));
+                    $arr = [];
+                    $order = [];
+                    foreach ($lines as $idx => $line) {
+                        $step_num = $idx + 1;
+                        $clean_line = preg_replace('/^step\s*\d+\s*[:\-\.]\s*/i', '', $line);
+                        $arr[] = ['step' => $step_num, 'text' => $clean_line];
+                        $order[] = (string)$step_num;
+                    }
+                    $steps_data = json_encode($arr);
+                    $correct_answer = implode('-', $order);
+                    $points = count($arr);
+                } else {
+                    $order = [];
+                    foreach ($decoded as $idx => $s) {
+                        $step_num = $s['step'] ?? ($idx + 1);
+                        $order[] = (string)$step_num;
+                    }
+                    $correct_answer = implode('-', $order);
+                    $points = count($decoded);
+                }
+            }
             if ($qid > 0) {
-                $st = db()->prepare('UPDATE questions SET question_text=?, qtype=?, option_a=?, option_b=?, option_c=?, option_d=?, correct_answer=?, points=? WHERE id=? AND exam_id=?');
-                $st->execute([$text, $qtype, $oa ?: null, $ob ?: null, $oc ?: null, $od ?: null, $correct, $points, $qid, $exam_id]);
+                $st = db()->prepare('UPDATE questions SET question_text=?, qtype=?, option_a=?, option_b=?, option_c=?, option_d=?, steps_data=?, correct_answer=?, points=? WHERE id=? AND exam_id=?');
+                $st->execute([$text, $qtype, $oa ?: null, $ob ?: null, $oc ?: null, $od ?: null, $steps_data ?: null, $correct_answer, $points, $qid, $exam_id]);
                 set_flash('Question updated.');
             } else {
                 $st = db()->prepare('SELECT COALESCE(MAX(sort_order),0)+1 n FROM questions WHERE exam_id=?');
                 $st->execute([$exam_id]); $n = $st->fetch()['n'];
-                $st = db()->prepare('INSERT INTO questions (exam_id, question_text, qtype, option_a, option_b, option_c, option_d, correct_answer, points, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
-                $st->execute([$exam_id, $text, $qtype, $oa ?: null, $ob ?: null, $oc ?: null, $od ?: null, $correct, $points, $n]);
+                $st = db()->prepare('INSERT INTO questions (exam_id, question_text, qtype, option_a, option_b, option_c, option_d, steps_data, correct_answer, points, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+                $st->execute([$exam_id, $text, $qtype, $oa ?: null, $ob ?: null, $oc ?: null, $od ?: null, $steps_data ?: null, $correct_answer, $points, $n]);
                 set_flash('Question added.');
             }
         }
@@ -71,7 +97,7 @@ include __DIR__ . '/includes/header.php';
     <label>Question</label><textarea name="question_text" required><?= e($edit['question_text'] ?? '') ?></textarea>
     <div class="grid two">
       <div><label>Type</label><select name="qtype" id="qtype">
-        <?php foreach (['mcq'=>'Multiple choice (A–D)','truefalse'=>'True / False','identification'=>'Identification (typed answer)','essay'=>'Essay (manual grading)'] as $k => $v): ?>
+        <?php foreach (['mcq'=>'Multiple choice (A–D)','truefalse'=>'True / False','identification'=>'Identification (typed answer)','essay'=>'Essay (manual grading)','arrangingsteps'=>'Arranging Steps'] as $k => $v): ?>
           <option value="<?= $k ?>" <?= (($edit['qtype'] ?? 'mcq') === $k) ? 'selected' : '' ?>><?= $v ?></option>
         <?php endforeach; ?>
       </select></div>
@@ -86,18 +112,36 @@ include __DIR__ . '/includes/header.php';
       </div>
     </div>
     <div id="correct_row">
-    <label>Correct answer <small class="hint">(mcq: A/B/C/D · truefalse: True/False · identification: exact text · essays need none)</small></label>
+    <label>Correct answer <small class="hint">(mcq: A/B/C/D · truefalse: True/False · identification: exact text · essays need none · arrangingsteps: JSON sequence)</small></label>
     <input type="text" name="correct_answer" id="correct_answer" value="<?= e($edit['correct_answer'] ?? '') ?>">
+    </div>
+    <div id="arrangingsteps-steps" style="display:none;">
+      <label>Steps <small class="hint">(JSON array of step objects with "text" field, e.g. [{"text": "Step 1"}, {"text": "Step 2"}]</small></label>
+      <textarea name="steps_data" id="steps_data" rows="8" placeholder='{"text": "Step 1", ...}'><?= e($edit['steps_data'] ?? '') ?></textarea>
     </div>
     <div class="btnrow"><button class="btn" type="submit"><?= $edit ? 'Save' : 'Add' ?></button>
     <?php if ($edit): ?><a class="btn ghost" href="teacher_questions.php?exam_id=<?= $exam_id ?>">Cancel</a><?php endif; ?></div>
   </form>
 </div>
-<?php $i = 1; foreach ($questions as $q): ?>
+<?php     $i = 1; foreach ($questions as $q): ?>
 <div class="q">
   <h3><?= $i++ ?>. <?= e($q['question_text']) ?> <small class="hint">[<?= e($q['qtype']) ?> · <?= $q['points'] ?> pt(s)]</small></h3>
   <?php if ($q['qtype'] === 'mcq'): ?>
     <div class="hint">A. <?= e($q['option_a']) ?> · B. <?= e($q['option_b']) ?> · C. <?= e($q['option_c']) ?> · D. <?= e($q['option_d']) ?> → <b>Answer: <?= e($q['correct_answer']) ?></b></div>
+  <?php elseif ($q['qtype'] === 'arrangingsteps'): ?>
+    <div class="hint">Steps:<br>
+      <?php
+      $steps = json_decode($q['steps_data'] ?? '[]', true);
+      if (is_array($steps) && !empty($steps)):
+        foreach ($steps as $index => $step):
+          $step_num = $index + 1;
+          $step_text = $step['text'] ?? '';
+          echo "Step {$step_num}: " . e($step_text) . "<br>";
+        endforeach;
+      endif;
+      ?>
+      <b>Correct order: <?= e($q['correct_answer']) ?></b>
+    </div>
   <?php else: ?>
     <div class="hint">Answer: <b><?= e($q['correct_answer']) ?></b></div>
   <?php endif; ?>
@@ -116,11 +160,13 @@ include __DIR__ . '/includes/header.php';
 <script>
 (function () {
   var t = document.getElementById('qtype'), row = document.getElementById('correct_row'),
-      inp = document.getElementById('correct_answer');
+      inp = document.getElementById('correct_answer'), stepsDiv = document.getElementById('arrangingsteps-steps');
   function sync() {
     var essay = t.value === 'essay';
-    row.style.display = essay ? 'none' : '';
-    inp.required = !essay;
+    var arranging = t.value === 'arrangingsteps';
+    row.style.display = (essay || arranging) ? 'none' : '';
+    if (stepsDiv) stepsDiv.style.display = arranging ? '' : 'none';
+    inp.required = !essay && !arranging;
     if (essay) inp.value = '';
   }
   t.addEventListener('change', sync); sync();

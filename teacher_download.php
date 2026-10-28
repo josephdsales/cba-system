@@ -36,27 +36,46 @@ $pdf->addLine('Score: ' . $attempt['score'] . '/' . $attempt['total'] . ' (' . $
 $pdf->addLine($attempt['percentage'] >= $attempt['passing_percent'] ? 'PASSED' : 'FAILED', 13, true);
 $pdf->blank();
 
-$i = 1;
-foreach ($items as $q) {
-    $ok = !empty($q['is_correct']);
-    $mine = $q['student_answer'] ?? '';
-    $pdf->addLine($i . '. ' . $q['question_text'] . ' [' . ($ok ? 'Correct' : 'Wrong') . ']', 11, true, 2);
-    if ($q['qtype'] === 'mcq') {
-        foreach (['A' => $q['option_a'], 'B' => $q['option_b'], 'C' => $q['option_c'], 'D' => $q['option_d']] as $L => $opt) {
-            if ($opt === null || $opt === '') continue;
-            $tags = '';
-            if (strtoupper($q['correct_answer']) === $L) $tags .= ' [correct answer]';
-            if (strtoupper(substr($mine, 0, 1)) === $L) $tags .= " (student's answer)";
-            $pdf->addLine('    ' . $L . '. ' . $opt . $tags);
+    $i = 1;
+    foreach ($items as $q) {
+        $ok = !empty($q['is_correct']);
+        $mine = $q['student_answer'] ?? '';
+        $pdf->addLine($i . '. ' . $q['question_text'] . ' [' . ($ok ? 'Correct' : 'Wrong') . ']', 11, true, 2);
+        if ($q['qtype'] === 'mcq') {
+            foreach (['A' => $q['option_a'], 'B' => $q['option_b'], 'C' => $q['option_c'], 'D' => $q['option_d']] as $L => $opt) {
+                if ($opt === null || $opt === '') continue;
+                $tags = '';
+                if (strtoupper($q['correct_answer']) === $L) $tags .= ' [correct answer]';
+                if (strtoupper(substr($mine, 0, 1)) === $L) $tags .= " (student's answer)";
+                $pdf->addLine('    ' . $L . '. ' . $opt . $tags);
+            }
+        } elseif ($q['qtype'] === 'arrangingsteps') {
+            $correct_order = json_decode($q['correct_answer'] ?? '[]', true);
+            $pdf->addLine('    Steps (correct order):');
+            if (is_array($correct_order) && !empty($correct_order)):
+                foreach ($correct_order as $index => $step_num):
+                    $step_text = '';
+                    $steps = json_decode($q['steps_data'] ?? '[]', true);
+                    if (is_array($steps)) {
+                        foreach ($steps as $s) {
+                            if (($s['step'] ?? null) == $step_num || ($s['text'] ?? '') === $step_num) {
+                                $step_text = $s['text'] ?? '';
+                                break;
+                            }
+                        }
+                    }
+                    $pdf->addLine('        Step ' . $step_num . ': ' . $step_text);
+                endforeach;
+            endif;
+            $pdf->addLine('    Correct answer: ' . $mine);
+        } else {
+            $pdf->addLine('    Correct answer: ' . $q['correct_answer']);
+            $pdf->addLine("    Student's answer: " . ($mine !== '' && $mine !== null ? $mine : '(blank)'));
         }
-    } else {
-        $pdf->addLine('    Correct answer: ' . $q['correct_answer']);
-        $pdf->addLine("    Student's answer: " . ($mine !== '' && $mine !== null ? $mine : '(blank)'));
+        $pdf->addLine('    Points: ' . $q['points_earned'] . '/' . $q['points']);
+        $pdf->blank();
+        $i++;
     }
-    $pdf->addLine('    Points: ' . $q['points_earned'] . '/' . $q['points']);
-    $pdf->blank();
-    $i++;
-}
 
 $bin = $pdf->render();
 $fname = 'Review-' . preg_replace('/[^A-Za-z0-9-_]+/', '_', $attempt['title']) . '-' . preg_replace('/[^A-Za-z0-9-_]+/', '_', $attempt['student_name']) . '.pdf';
