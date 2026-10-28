@@ -1,6 +1,7 @@
 <?php
 require __DIR__ . '/includes/config.php';
 require __DIR__ . '/includes/auth.php';
+require_once __DIR__ . '/includes/schema.php';
 $user = require_role('teacher');
 
 $exam_id = (int)($_GET['exam_id'] ?? 0);
@@ -8,6 +9,10 @@ $st = db()->prepare('SELECT * FROM exams WHERE id=? AND teacher_id=?');
 $st->execute([$exam_id, $user['id']]);
 $exam = $st->fetch();
 if (!$exam) { header('Location: teacher_exams.php'); exit; }
+
+// Ensure the questions table has steps_data + the 'arrangingsteps' qtype
+// (older deployments created the table before these existed).
+ensure_arrangingsteps();
 
 // ---------- helpers ----------
 function docx_to_text(string $path): string {
@@ -71,15 +76,30 @@ function parse_blocks(string $text): array {
         $step_lines = [];
         $non_step_lines = [];
         $is_arranging = false;
+        $has_arranging_type = false;
         foreach ($lines as $ln) {
             if (preg_match('/^type\s*[:\-]\s*(arrangingsteps|arranging steps)/i', $ln)) {
                 $is_arranging = true;
+                $has_arranging_type = true;
             } elseif (preg_match('/^step\s*(\d+)\s*[:\-\.]\s*(.+)$/i', $ln, $sm)) {
                 $step_lines[(int)$sm[1]] = trim($sm[2]);
                 $is_arranging = true;
             } else {
                 $non_step_lines[] = $ln;
             }
+        }
+
+        // Explicitly typed as arranging but steps aren't prefixed "Step N"
+        // (e.g. just numbered lines 1. 2. 3.) - accept numbered items as steps.
+        if ($has_arranging_type && empty($step_lines)) {
+            foreach ($non_step_lines as $idx => $nsl) {
+                if (preg_match('/^(\d+)\s*[\.\)\:]\s*(.+)$/', $nsl, $m)) {
+                    $step_lines[(int)$m[1]] = trim($m[2]);
+                    unset($non_step_lines[$idx]);
+                }
+            }
+            $non_step_lines = array_values($non_step_lines);
+            if (!empty($step_lines)) $is_arranging = true;
         }
 
         if ($is_arranging && !empty($step_lines)) {
@@ -101,7 +121,9 @@ function parse_blocks(string $text): array {
             ];
             $qtext_lines = [];
             foreach ($non_step_lines as $nsl) {
-                if (!preg_match('/^type\s*[:\-]/i', $nsl) && !preg_match('/^points?\s*[:\-]/i', $nsl)) {
+                if (!preg_match('/^type\s*[:\-]/i', $nsl)
+                    && !preg_match('/^points?\s*[:\-]/i', $nsl)
+                    && !preg_match('/^(answer|ans|correct\s*answer)s?\s*[:\-\.]?\s*.+/i', $nsl)) {
                     $qtext_lines[] = preg_replace('/^(Q\s*\d+(?:\s*-\s*Q?\s*\d+)?|Question\s*\d+|\d+)\s*[\.\)\:\-]\s*/i', '', $nsl);
                 }
             }
@@ -210,12 +232,19 @@ Answer: B
 Points: 1
 
 Q2. The Earth is flat.
+Type: True/False
 Answer: False
 Points: 1
 
 Q3. Who is the national hero of the Philippines?
 Answer: Jose Rizal
-Points: 2</pre>
-  <p class="hint">Tips: one question per block, blank line between (also works without blank lines if each question starts with Q1., 1., etc.). Options as <code class="inline">A. ...</code> (also <code class="inline">A) ...</code>). Answer line as <code class="inline">Answer: B</code> (also <code class="inline">Ans:</code> / <code class="inline">Correct answer:</code>) / <code class="inline">True</code> / text. Word auto-numbered lists work too. Save as <code class="inline">.docx</code> then upload. If it fails, the error shows the text read from your file — compare it with the format above.</p>
+Points: 2
+
+Q4. Arrange the following steps in the correct order.
+Type: Arranging Steps
+Step 1. Open the box
+Step 2. Remove the manual
+Step 3. Plug in the power cord</pre>
+  <p class="hint">Tips: one question per block, blank line between (also works without blank lines if each question starts with Q1., 1., etc.). Options as <code class="inline">A. ...</code> (also <code class="inline">A) ...</code>). Answer line as <code class="inline">Answer: B</code> (also <code class="inline">Ans:</code> / <code class="inline">Correct answer:</code>) / <code class="inline">True</code> / text. Word auto-numbered lists work too. <b>Arranging steps</b>: add <code class="inline">Type: Arranging Steps</code> and list the steps <b>in the correct order</b> as <code class="inline">Step 1. ...</code> (plain numbered lines like <code class="inline">1. ...</code> also work) — the system shuffles them for students. Save as <code class="inline">.docx</code> then upload. If it fails, the error shows the text read from your file — compare it with the format above.</p>
 </div>
 <?php include __DIR__ . '/includes/footer.php'; ?>

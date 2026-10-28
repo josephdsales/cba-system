@@ -207,9 +207,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
                 $st = db()->prepare('SELECT * FROM questions WHERE exam_id=? ORDER BY sort_order, id');
                 $st->execute([$sel]); $src_questions = $st->fetchAll();
-                $ins = db()->prepare('INSERT INTO questions (exam_id, question_text, qtype, option_a, option_b, option_c, option_d, correct_answer, points, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+                $ins = db()->prepare('INSERT INTO questions (exam_id, question_text, qtype, option_a, option_b, option_c, option_d, steps_data, correct_answer, points, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
                 foreach ($src_questions as $q) {
-                    $ins->execute([$new_exam_id, $q['question_text'], $q['qtype'], $q['option_a'], $q['option_b'], $q['option_c'], $q['option_d'], $q['correct_answer'], $q['points'], $q['sort_order']]);
+                    $ins->execute([$new_exam_id, $q['question_text'], $q['qtype'], $q['option_a'], $q['option_b'], $q['option_c'], $q['option_d'], $q['steps_data'] ?? null, $q['correct_answer'], $q['points'], $q['sort_order']]);
                 }
 
                 $assign_students($new_exam_id, $valid_students, $allow_retake ? 1 : 0);

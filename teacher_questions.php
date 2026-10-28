@@ -1,6 +1,7 @@
 <?php
 require __DIR__ . '/includes/config.php';
 require __DIR__ . '/includes/auth.php';
+require_once __DIR__ . '/includes/schema.php';
 $user = require_role('teacher');
 
 $exam_id = (int)($_GET['exam_id'] ?? $_POST['exam_id'] ?? 0);
@@ -8,6 +9,10 @@ $st = db()->prepare('SELECT * FROM exams WHERE id=? AND teacher_id=?');
 $st->execute([$exam_id, $user['id']]);
 $exam = $st->fetch();
 if (!$exam) { header('Location: teacher_exams.php'); exit; }
+
+// Ensure the questions table has steps_data + the 'arrangingsteps' qtype
+// (older deployments created the table before these existed).
+ensure_arrangingsteps();
 
 $edit = null;
 if (isset($_GET['qedit'])) {
