@@ -64,11 +64,12 @@ CREATE TABLE IF NOT EXISTS questions (
   exam_id INT NOT NULL REFERENCES exams(id) ON DELETE CASCADE,
   question_text TEXT NOT NULL,
   qtype VARCHAR(15) NOT NULL DEFAULT 'mcq'
-    CHECK (qtype IN ('mcq','truefalse','identification','essay')),
+    CHECK (qtype IN ('mcq','truefalse','identification','essay','arrangingsteps')),
   option_a VARCHAR(500) NULL,
   option_b VARCHAR(500) NULL,
   option_c VARCHAR(500) NULL,
   option_d VARCHAR(500) NULL,
+  steps_data TEXT NULL,
   correct_answer TEXT NOT NULL,
   points INT NOT NULL DEFAULT 1,
   sort_order INT NOT NULL DEFAULT 0
