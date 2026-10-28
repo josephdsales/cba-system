@@ -123,6 +123,26 @@ function ensure_per_student_retake(): void {
     } catch (Throwable $e) { /* DB unavailable — page will handle */ }
 }
 
+// Lightweight runtime migration for arranging-steps questions (v7).
+// The questions.steps_data column and the 'arrangingsteps' qtype were added
+// after earlier deployments (install.php / db_migrate.php are not re-run).
+// Safe to call on every request: static guard + exception-tolerant.
+function ensure_arrangingsteps(): void {
+    static $done = false;
+    if ($done) return;
+    $done = true;
+    try {
+        $db = db();
+        try { $db->exec('ALTER TABLE questions ADD COLUMN steps_data TEXT'); } catch (Throwable $e) { /* exists */ }
+        if ($db->getAttribute(PDO::ATTR_DRIVER_NAME) === 'pgsql') {
+            try { $db->exec('ALTER TABLE questions DROP CONSTRAINT IF EXISTS questions_qtype_check'); } catch (Throwable $e) { /* no constraint */ }
+            try { $db->exec("ALTER TABLE questions ADD CONSTRAINT questions_qtype_check CHECK (qtype IN ('mcq','truefalse','identification','essay','arrangingsteps'))"); } catch (Throwable $e) { /* already correct */ }
+        } else {
+            try { $db->exec("ALTER TABLE questions MODIFY qtype ENUM('mcq','truefalse','identification','essay','arrangingsteps') NOT NULL DEFAULT 'mcq'"); } catch (Throwable $e) { /* already correct */ }
+        }
+    } catch (Throwable $e) { /* DB unavailable - the calling page will surface it */ }
+}
+
 // Returns true when the per-student retake column is usable.
 function has_per_student_retake(): bool {
     static $has = null;
