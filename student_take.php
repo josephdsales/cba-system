@@ -135,8 +135,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $correct = (strtolower($ans) === strtolower($q['correct_answer']));
             $earned = $correct ? $q['points'] : 0;
         } elseif ($q['qtype'] === 'arrangingsteps') {
-            $correct = ($ans === trim($q['correct_answer']));
-            $earned = $correct ? $q['points'] : 0;
+            $submitted = array_values(array_filter(array_map('trim', explode('-', $ans))));
+            $correct_seq = array_values(array_filter(array_map('trim', explode('-', trim($q['correct_answer'])))));
+            $matches = 0;
+            $total_steps = count($correct_seq);
+            for ($i = 0; $i < min(count($submitted), $total_steps); $i++) {
+                if ($submitted[$i] === $correct_seq[$i]) $matches++;
+            }
+            $correct = $total_steps > 0 && $matches === $total_steps;
+            $earned = $total_steps > 0 ? round($q['points'] * ($matches / $total_steps), 2) : 0;
         } else { // identification
             $correct = (strtolower($ans) === strtolower(trim($q['correct_answer'])));
             $earned = $correct ? $q['points'] : 0;

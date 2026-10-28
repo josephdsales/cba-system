@@ -60,13 +60,14 @@ function parse_blocks(string $text): array {
     $blocks = [];
     foreach ($raw_blocks as $b) {
         $lines = array_values(array_filter(array_map('trim', explode("\n", $b)), function ($l) { return $l !== ''; }));
-        $cur = []; $has_answer = false;
+        $cur = []; $has_answer = false; $has_steps = false;
         foreach ($lines as $ln) {
-            $is_answer = (bool)preg_match('/^(answer|ans|correct\s*answer)s?\s*[:\-\.]?\s*.+/i', $ln);
+            $is_answer = (bool)preg_match('/^(answer|ans|correct\s*answer)\s*(?:key)?\s*[:\-\.]?\s*.+/i', $ln);
             $is_qstart = (bool)preg_match('/^(Q\s*\d*|Question\s*\d+|\d+)\s*[\.\)\:\-]\s*\S/i', $ln);
-            if ($is_qstart && $has_answer && $cur) { $blocks[] = $cur; $cur = []; $has_answer = false; }
+            if ($is_qstart && $cur && ($has_answer || $has_steps)) { $blocks[] = $cur; $cur = []; $has_answer = false; $has_steps = false; }
             $cur[] = $ln;
             if ($is_answer) $has_answer = true;
+            if (preg_match('/^step\s*(\d+)\s*[:\-\.]\s*.+/i', $ln)) $has_steps = true;
         }
         if ($cur) $blocks[] = $cur;
     }
@@ -140,8 +141,20 @@ function parse_blocks(string $text): array {
         $qlines = [];
         foreach ($lines as $ln) {
             if (preg_match('/^\(?([A-Da-d])[\)\.\:]\s*(.+)$/', $ln, $m) && !preg_match('/^answer/i', $ln)) {
-                $q[strtolower($m[1])] = trim($m[2]);
-            } elseif (preg_match('/^(answer|ans|correct\s*answer)s?\s*[:\-\.]?\s*(.+)$/i', $ln, $m)) {
+                $L = strtolower($m[1]); $rest = trim($m[2]);
+                // Split inline options on one line: "A. X   B. Y   C. Z   D. W"
+                $segments = preg_split('/\s+(?=[A-Da-d][\.\)\:]\s*)/', $rest);
+                $q[$L] = trim($segments[0]);
+                $letters = ['a', 'b', 'c', 'd'];
+                $li = array_search($L, $letters, true);
+                foreach ($segments as $si => $seg) {
+                    if ($si === 0) continue;
+                    $next = $letters[$li + $si] ?? null;
+                    if ($next !== null) {
+                        $q[$next] = trim(preg_replace('/^[A-Da-d][\.\)\:]\s*/', '', $seg));
+                    }
+                }
+            } elseif (preg_match('/^(answer|ans|correct\s*answer)\s*(?:key)?\s*[:\-\.]?\s*(.+)$/i', $ln, $m)) {
                 $q['answer'] = trim($m[2]);
             } elseif (preg_match('/^points?\s*[:\-]?\s*(\d+)/i', $ln, $m)
                    || preg_match('/^\(?(\d+)\s*points?\)?$/i', $ln, $m)) {
@@ -172,7 +185,10 @@ function parse_blocks(string $text): array {
         $ans = strtolower($q['answer']);
         if (!$hasOpts && in_array($ans, ['true', 'false'], true)) $q['qtype'] = 'truefalse';
         elseif (!$hasOpts) $q['qtype'] = 'identification';
-        if ($q['qtype'] === 'mcq') $q['answer'] = strtoupper(substr($q['answer'], 0, 1));
+        if ($q['qtype'] === 'mcq') {
+            $clean = preg_replace('/[^A-Za-z]/', '', $q['answer']);
+            $q['answer'] = strtoupper(substr($clean, 0, 1));
+        }
         $out[] = $q;
     }
     return $out;
@@ -245,6 +261,6 @@ Type: Arranging Steps
 Step 1. Open the box
 Step 2. Remove the manual
 Step 3. Plug in the power cord</pre>
-  <p class="hint">Tips: one question per block, blank line between (also works without blank lines if each question starts with Q1., 1., etc.). Options as <code class="inline">A. ...</code> (also <code class="inline">A) ...</code>). Answer line as <code class="inline">Answer: B</code> (also <code class="inline">Ans:</code> / <code class="inline">Correct answer:</code>) / <code class="inline">True</code> / text. Word auto-numbered lists work too. <b>Arranging steps</b>: add <code class="inline">Type: Arranging Steps</code> and list the steps <b>in the correct order</b> as <code class="inline">Step 1. ...</code> (plain numbered lines like <code class="inline">1. ...</code> also work) — the system shuffles them for students. Save as <code class="inline">.docx</code> then upload. If it fails, the error shows the text read from your file — compare it with the format above.</p>
+  <p class="hint">Tips: one question per block, blank line between (also works without blank lines if each question starts with Q1., 1., etc.). Options as <code class="inline">A. ...</code> (also <code class="inline">A) ...</code>; several options on one line are split automatically). Answer line as <code class="inline">Answer: B</code> (also <code class="inline">Ans:</code> / <code class="inline">Correct answer:</code> / <code class="inline">Answer Key:</code>) / <code class="inline">True</code> / text. Word auto-numbered lists work too. <b>Arranging steps</b>: add <code class="inline">Type: Arranging Steps</code> and list the steps <b>in the correct order</b> as <code class="inline">Step 1. ...</code> (plain numbered lines like <code class="inline">1. ...</code> also work; a range header like <code class="inline">Q18-Q25.</code> is fine) — the system shuffles them for students, and the item is worth one point per step (partial credit per correctly placed step). Save as <code class="inline">.docx</code> then upload. If it fails, the error shows the text read from your file — compare it with the format above.</p>
 </div>
 <?php include __DIR__ . '/includes/footer.php'; ?>
