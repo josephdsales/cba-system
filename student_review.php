@@ -75,6 +75,7 @@ include __DIR__ . '/includes/header.php';
         <b><?= $L ?>.</b> <?= e($opt) ?>
         <?= strtoupper(substr($mine, 0, 1)) === $L ? '<small class="hint">— your answer</small>' : '' ?>
       </div>
+      <?php endif; ?>
     <?php endforeach; ?>
   <?php elseif ($q['qtype'] === 'arrangingsteps'): ?>
     <p style="margin:6px 0"><b>Steps (your answer):</b></p>

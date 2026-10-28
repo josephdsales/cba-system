@@ -53,6 +53,28 @@ function parse_exam_text(string $text): array {
     $stripQnum = function(string $ln): string {
         return trim(preg_replace('/^\s*\d+\s*[.):\-]\s*/', '', $ln));
     };
+    // A question line starts with "1.", "Q1.", "Question 1.", etc.
+    // Range headers like "Q18-Q25." introduce a block of items, not a question.
+    $isQStart = function(string $ln): bool {
+        if (preg_match('/^Q\s*\d+\s*[-–—]\s*\d+/i', $ln)) return false;
+        return (bool)preg_match('/^\s*(?:Q\s*\d+|Question\s*\d+|\d+)\s*[.):\-]\s*\S/i', $ln);
+    };
+    // Decide qtype + default answer once the choices/answer are known.
+    $finalize = function(array $q, bool $hasOpts, ?string $curSection): array {
+        if ($hasOpts) {
+            $q['qtype'] = 'mcq';
+            if ($q['answer'] === '') $q['answer'] = 'A';
+        } elseif ($curSection === 'truefalse' || preg_match('/^(true|false|t|f)\b/i', $q['answer'])) {
+            $q['qtype'] = 'truefalse';
+            $q['answer'] = in_array(strtolower($q['answer']), ['false', 'f'], true) ? 'False' : 'True';
+        } else {
+            // Identification. An empty '?' answer lets the teacher type the
+            // correct answer later; any answer found in the file is kept.
+            $q['qtype'] = 'identification';
+            if ($q['answer'] === '') $q['answer'] = '?';
+        }
+        return $q;
+    };
     $isHeaderJunk = function(string $ln): bool {
         if (preg_match('/^name\s*:/i', $ln)) return true;
         if (preg_match('/^grade\s+and\s+section/i', $ln)) return true;
@@ -73,7 +95,7 @@ function parse_exam_text(string $text): array {
         return null;
     };
     $splitOptionParts = function(string $ln): array {
-        return preg_split('/\s+(?=[A-D][.):])/', $ln);
+        return preg_split('/\s+(?=[A-D][.):])/i', $ln);
     };
     $assignOptions = function(array &$q, array $parts) use ($LETTERS, $LIDX) {
         $firstFree = function() use (&$q, $LETTERS) {
@@ -81,7 +103,7 @@ function parse_exam_text(string $text): array {
             return -1;
         };
         foreach ($parts as $part) {
-            if (preg_match('/^\(?([A-D])[.):]\s*(.+)$/', $part, $m)) {
+            if (preg_match('/^\(?([A-D])[.):]\s*(.+)$/i', $part, $m)) {
                 $idx = $LIDX[strtolower($m[1])] ?? null;
                 if ($idx !== null && $q[$LETTERS[$idx]] === null) $q[$LETTERS[$idx]] = trim($m[2]);
             } else {
@@ -191,14 +213,21 @@ function parse_exam_text(string $text): array {
         }
 
         // 3. Standard numbered question (MCQ, True/False, or Identification)
-        if (preg_match('/^\s*\d+\s*[.):\-]\s*\S/', $ln)) {
+        if ($isQStart($ln)) {
+            // Lines like "Q5. Arrange the following steps..." only introduce an
+            // Arranging-Steps item — skip them and let the Step N. lines below
+            // build the question (otherwise a duplicate junk question is made).
+            $nxt = $lines[$i + 1] ?? '';
+            if ($isSectionHeader($nxt) === 'arrangingsteps' || preg_match('/^step\s*\d+\s*[:.\-]/i', $nxt)) {
+                continue;
+            }
             $cleanedLine = $stripPrefix($ln);
             $qtext = $stripQ($cleanedLine);
             $qlines = [$qtext];
             
             $lookahead = [];
             $idx = $i;
-            while ($idx + 1 < count($lines) && !preg_match('/^\s*\d+\s*[.):\-]\s*\S/', $lines[$idx + 1]) && !$isSectionHeader($lines[$idx + 1])) {
+            while ($idx + 1 < count($lines) && !$isQStart($lines[$idx + 1]) && !$isSectionHeader($lines[$idx + 1])) {
                 $idx++;
                 $lookahead[] = $lines[$idx];
             }
@@ -215,7 +244,7 @@ function parse_exam_text(string $text): array {
 
             $hasOpts = false;
             foreach ($lookahead as $la) {
-                if (preg_match('/^[A-D][.):]/', $la)) {
+                if (preg_match('/^[A-D][.):]/i', $la)) {
                     $parts = $splitOptionParts($la);
                     $assignOptions($q, $parts);
                     $hasOpts = true;
@@ -226,26 +255,64 @@ function parse_exam_text(string $text): array {
                 }
             }
 
-            if ($hasOpts) {
-                $q['qtype'] = 'mcq';
-                if ($q['answer'] === '') $q['answer'] = 'A';
-            } elseif ($curSection === 'truefalse' || preg_match('/^(true|false|t|b)\b/i', $q['answer'])) {
-                $q['qtype'] = 'truefalse';
-                $q['answer'] = in_array(strtolower($q['answer']), ['false', 'f'], true) ? 'False' : 'True';
-            } elseif ($curSection === 'identification') {
-                $q['qtype'] = 'identification';
-                if ($q['answer'] === '') $q['answer'] = '?';
-            } else {
-                if ($curSection === 'truefalse') {
-                    $q['qtype'] = 'truefalse';
-                    $q['answer'] = 'True';
-                } else {
-                    $q['qtype'] = 'identification';
-                    $q['answer'] = '?';
-                }
-            }
+            $q = $finalize($q, $hasOpts, $curSection);
             $out[] = $q;
             continue;
+        }
+
+        // 4. Word auto-numbered questions: the numbering lives in Word's list
+        // formatting, so the text has no "1." / "Q1." prefix. A plain line only
+        // counts as a question when choices or an Answer line follow it.
+        if (!preg_match('/^(answer|ans|correct\s*answer)\s*(?:key)?\s*[:.\-]/i', $ln)
+            && !preg_match('/^points?\s*[:\-]/i', $ln)) {
+            $group = [$ln];
+            $idx = $i;
+            while ($idx + 1 < count($lines)
+                   && !$isQStart($lines[$idx + 1])
+                   && !$isSectionHeader($lines[$idx + 1])
+                   && !preg_match('/^step\s*\d+\s*[:.\-]/i', $lines[$idx + 1])) {
+                $idx++;
+                $group[] = $lines[$idx];
+            }
+            $textParts = [];
+            $hasOpts = false;
+            $answer = '';
+            $lastConsumed = $i;
+            foreach ($group as $gi => $gl) {
+                if (preg_match('/^(answer|ans|correct\s*answer)\s*(?:key)?\s*[:.\-]\s*(.+)$/i', $gl, $am)) {
+                    $answer = trim($am[2]);
+                    $lastConsumed = $i + $gi;
+                    break; // the answer line completes the question
+                }
+                if (preg_match('/^[A-D][.):]/i', $gl)) {
+                    $hasOpts = true;
+                    $lastConsumed = $i + $gi;
+                    continue;
+                }
+                if ($hasOpts) break; // a bare line after choices = next question
+                $textParts[] = $gl;  // wrapped text (soft line break) joins in
+                $lastConsumed = $i + $gi;
+            }
+            if ($hasOpts || $answer !== '') {
+                $q = [
+                    'qtype' => 'mcq',
+                    'text' => trim(implode(' ', $textParts)),
+                    'a' => null, 'b' => null, 'c' => null, 'd' => null,
+                    'steps_data' => null,
+                    'correct_answer' => '',
+                    'points' => 1,
+                    'answer' => $answer
+                ];
+                if ($hasOpts) {
+                    foreach ($group as $gl) {
+                        if (preg_match('/^[A-D][.):]/i', $gl)) $assignOptions($q, $splitOptionParts($gl));
+                    }
+                }
+                $q = $finalize($q, $hasOpts, $curSection);
+                $i = $lastConsumed;
+                $out[] = $q;
+                continue;
+            }
         }
 
         // Answer: B (standalone)
