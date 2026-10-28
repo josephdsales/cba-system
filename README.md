@@ -93,9 +93,15 @@ Points: 1
 Q3. Who is the national hero of the Philippines?
 Answer: Jose Rizal
 Points: 2
+
+Q4. Arrange the following steps in the correct order.
+Type: Arranging Steps
+Step 1. Open the box
+Step 2. Remove the manual
+Step 3. Plug in the power cord
 ```
 
-A ready example is in `sample_exam.txt` (copy into Word and save as .docx to test).
+All four question types are supported: **Multiple Choice** (options `A.`–`D.` + `Answer: B`), **True/False** (`Answer: True`/`False`), **Identification** (`Answer:` + exact text), and **Arranging Steps** (`Type: Arranging Steps` + `Step N. ...` lines listed **in the correct order**; plain numbered lines like `1. ...` also work). The system shuffles the steps for students. A ready example is in `sample_exam.txt` (copy into Word and save as .docx to test).
 
 ## Files
 

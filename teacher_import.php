@@ -31,167 +31,261 @@ function docx_to_text(string $path): string {
     return html_entity_decode($text, ENT_QUOTES | ENT_XML1, 'UTF-8');
 }
 
-// Parse plain-text exam format into questions.
-// Block format (blank line separates questions):
-//   Q1. What is 2+2?
-//   A. 3   B. 4   C. 5   D. 6
-//   Answer: B
-//   Points: 1
-// True/False:  "Q. Manila is the capital.  Answer: True"
-// Identification: "Q. What is ...?  Answer: Jose Rizal" (no A-D lines)
+// Parse plain-text / docx exam format into questions.
+// Supports paper-style tests with section headers (Multiple Choice, True or False,
+// Identification, Arranging Steps), two-column options, inline ID items, and optional answers.
 function parse_exam_text(string $text): array {
-    $qs = parse_blocks($text);
-    if ($qs) return $qs;
-    // Fallback: whole exam pasted on one line (no line breaks in the file).
-    // Segment the inline markers (options, Answer, Points, Q-numbers), then re-parse.
-    $seg = $text;
-    $seg = preg_replace('/\s+(Answer|Ans|Correct answer)s?\s*:\s*/i', "\nAnswer: ", $seg);
-    $seg = preg_replace('/\s+Points?\s*:\s*/i', "\nPoints: ", $seg);
-    $seg = preg_replace('/\s+(\d+)\s+points?(?=\s|$)/i', "\nPoints: $1", $seg);
-    $seg = preg_replace('/\s+([A-D])[\.\)]\s+(?=\S)/', "\n$1. ", $seg);
-    $seg = preg_replace('/\s+(Q\s*\d+)\s*[\.\)\:]\s*/i', "\n$1. ", $seg);
-    return parse_blocks($seg);
-}
-
-function parse_blocks(string $text): array {
     $text = str_replace(["\r\n", "\r"], "\n", trim($text));
-    $raw_blocks = preg_split("/\n\s*\n/", $text);
-    // Re-split: a new question may start WITHOUT a blank line before it.
-    $blocks = [];
-    foreach ($raw_blocks as $b) {
-        $lines = array_values(array_filter(array_map('trim', explode("\n", $b)), function ($l) { return $l !== ''; }));
-        $cur = []; $has_answer = false; $has_steps = false;
-        foreach ($lines as $ln) {
-            $is_answer = (bool)preg_match('/^(answer|ans|correct\s*answer)\s*(?:key)?\s*[:\-\.]?\s*.+/i', $ln);
-            $is_qstart = (bool)preg_match('/^(Q\s*\d*|Question\s*\d+|\d+)\s*[\.\)\:\-]\s*\S/i', $ln);
-            if ($is_qstart && $cur && ($has_answer || $has_steps)) { $blocks[] = $cur; $cur = []; $has_answer = false; $has_steps = false; }
-            $cur[] = $ln;
-            if ($is_answer) $has_answer = true;
-            if (preg_match('/^step\s*(\d+)\s*[:\-\.]\s*.+/i', $ln)) $has_steps = true;
-        }
-        if ($cur) $blocks[] = $cur;
-    }
+    $lines = array_values(array_filter(array_map('trim', explode("\n", $text)), function ($l) { return $l !== ''; }));
+    
     $out = [];
-    foreach ($blocks as $lines) {
-        // Check for arranging steps format first
-        $step_lines = [];
-        $non_step_lines = [];
-        $is_arranging = false;
-        $has_arranging_type = false;
-        foreach ($lines as $ln) {
-            if (preg_match('/^type\s*[:\-]\s*(arrangingsteps|arranging steps)/i', $ln)) {
-                $is_arranging = true;
-                $has_arranging_type = true;
-            } elseif (preg_match('/^step\s*(\d+)\s*[:\-\.]\s*(.+)$/i', $ln, $sm)) {
-                $step_lines[(int)$sm[1]] = trim($sm[2]);
-                $is_arranging = true;
+    $curSection = null;
+
+    $LETTERS = ['a', 'b', 'c', 'd'];
+    $LIDX = ['a' => 0, 'b' => 1, 'c' => 2, 'd' => 3];
+
+    $stripQ = function(string $ln): string {
+        return preg_replace('/^\s*(Q\s*\d*|Question\s*\d+|\d+)\s*[.):\-]\s*/i', '', $ln);
+    };
+    $stripPrefix = function(string $ln): string {
+        return trim(preg_replace('/^[_\-\s]+/', '', $ln));
+    };
+    $stripQnum = function(string $ln): string {
+        return trim(preg_replace('/^\s*\d+\s*[.):\-]\s*/', '', $ln));
+    };
+    $isHeaderJunk = function(string $ln) use (&$curSection): bool {
+        if (preg_match('/^name\s*:/i', $ln)) return true;
+        if (preg_match('/^grade\s+and\s+section/i', $ln)) return true;
+        if (preg_match('/^date\s*:/i', $ln)) return true;
+        if (preg_match('/^score\s*:/i', $ln)) return true;
+        if (preg_match('/^(tle\s*\d+|summative|test|quiz|examination|periodical|quarterly|midterm|final|pretest|posttest)\b/i', $ln)) return true;
+        if (preg_match('/^(i{1,3}v?|iv|v?i{0,3})\s*[.)]\s*\S/i', $ln) && strlen($ln) < 120) return true;
+        if (preg_match('/^multiple\s+choice|true\s+or\s+false|identification:\s*identify|arrange\s+the\s+following/i', $ln)) return true;
+        if (preg_match('/^write\s+[ts]\s+if|write\s+s\s+for|choose\s+the\s+letter/i', $ln)) return true;
+        if (preg_match('/^for\s+items\s+\d+\s*-\s*\d+\s*\./i', $ln)) return true;
+        return false;
+    };
+    $isSectionHeader = function(string $ln): ?string {
+        if (preg_match('/multiple\s+choice/i', $ln)) return 'mcq';
+        if (preg_match('/true\s+or\s+false|true\s*\/\s*false/i', $ln)) return 'truefalse';
+        if (preg_match('/identification/i', $ln)) return 'identification';
+        if (preg_match('/arrange|arranging|chronological/i', $ln)) return 'arrangingsteps';
+        if (preg_match('/essay/i', $ln)) return 'essay';
+        return null;
+    };
+    $splitOptionParts = function(string $ln): array {
+        return preg_split('/\s+(?=[A-D][.):])/', $ln);
+    };
+    $assignOptions = function(array &$q, array $parts) use ($LETTERS, $LIDX) {
+        $firstFree = function() use (&$q, $LETTERS) {
+            for ($i = 0; $i < 4; $i++) if ($q[$LETTERS[$i]] === null) return $i;
+            return -1;
+        };
+        foreach ($parts as $part) {
+            if (preg_match('/^\(?([A-D])[.):]\s*(.+)$/', $part, $m)) {
+                $idx = $LIDX[strtolower($m[1])] ?? null;
+                if ($idx !== null && $q[$LETTERS[$idx]] === null) $q[$LETTERS[$idx]] = trim($m[2]);
             } else {
-                $non_step_lines[] = $ln;
+                $idx = $firstFree();
+                if ($idx >= 0 && $q[$LETTERS[$idx]] === null) $q[$LETTERS[$idx]] = trim($part);
             }
         }
+    };
+    $extractSteps = function(array $linesArr): array {
+        $steps = [];
+        foreach ($linesArr as $ln) {
+            if (preg_match('/^step\s*(\d+)\s*[:.\-]\s*(.+)$/i', $ln, $s)) {
+                $steps[] = ['n' => (int)$s[1], 'text' => trim($s[2])];
+            }
+        }
+        return $steps;
+    };
+    $extractInlineIdent = function(string $lnText): array {
+        $items = [];
+        if (preg_match_all('/_{3,}\s*(\d+)\s*[.):\-]?\s*([A-Za-z0-9][^_]*?)(?=\s+_{3,}|\s{3,}_|$)/u', $lnText, $matches, PREG_SET_ORDER)) {
+            foreach ($matches as $m) {
+                $items[] = ['n' => (int)$m[1], 'text' => trim($m[2])];
+            }
+        }
+        if (empty($items) && preg_match('/^_{3,}\s*(\d+)\s*[.):\-]?\s*(.+)$/', $lnText, $m2)) {
+            $items[] = ['n' => (int)$m2[1], 'text' => trim($m2[2])];
+        }
+        return $items;
+    };
 
-        // Explicitly typed as arranging but steps aren't prefixed "Step N"
-        // (e.g. just numbered lines 1. 2. 3.) - accept numbered items as steps.
-        if ($has_arranging_type && empty($step_lines)) {
-            foreach ($non_step_lines as $idx => $nsl) {
-                if (preg_match('/^(\d+)\s*[\.\)\:]\s*(.+)$/', $nsl, $m)) {
-                    $step_lines[(int)$m[1]] = trim($m[2]);
-                    unset($non_step_lines[$idx]);
+    for ($i = 0; $i < count($lines); $i++) {
+        $ln = $lines[$i];
+        $sec = $isSectionHeader($ln);
+        if ($sec) { $curSection = $sec; continue; }
+        if ($isHeaderJunk($ln)) continue;
+
+        // Arranging: Step N: text
+        if (preg_match('/^step\s*\d+\s*[:.\-]/i', $ln)) {
+            $stepLines = [$ln];
+            while ($i + 1 < count($lines) && preg_match('/^step\s*\d+\s*[:.\-]/i', $lines[$i + 1])) {
+                $i++;
+                $stepLines[] = $lines[$i];
+            }
+            $stepObjs = $extractSteps($stepLines);
+            if (!empty($stepObjs)) {
+                $order = [];
+                $stepsData = [];
+                foreach ($stepObjs as $so) {
+                    $order[] = (string)$so['n'];
+                    $stepsData[] = ['step' => $so['n'], 'text' => $so['text']];
                 }
+                $out[] = [
+                    'qtype' => 'arrangingsteps',
+                    'text' => 'Arrange the following steps in correct order',
+                    'steps_data' => json_encode($stepsData),
+                    'answer' => implode('-', $order),
+                    'points' => count($stepObjs),
+                    'a' => null, 'b' => null, 'c' => null, 'd' => null
+                ];
             }
-            $non_step_lines = array_values($non_step_lines);
-            if (!empty($step_lines)) $is_arranging = true;
+            continue;
         }
 
-        if ($is_arranging && !empty($step_lines)) {
-            ksort($step_lines);
-            $steps_arr = [];
-            $order_arr = [];
-            $idx = 1;
-            foreach ($step_lines as $step_num => $step_text) {
-                $steps_arr[] = ['step' => $idx, 'text' => $step_text];
-                $order_arr[] = (string)$idx;
-                $idx++;
+        // Arranging: ______ text (no Step prefix) under arranging section
+        if (preg_match('/^[_\-\s]{3,}/', $ln) && $curSection === 'arrangingsteps') {
+            $stepLines = [];
+            $j = $i;
+            while ($j < count($lines) && preg_match('/^[_\-\s]{3,}/', $lines[$j]) && !preg_match('/^[_\-\s]{3,}\s*\d+\s*[.):\-]/', $lines[$j])) {
+                $stepLines[] = $lines[$j];
+                $j++;
+            }
+            if (count($stepLines) >= 2) {
+                $stepsData = [];
+                $order = [];
+                foreach ($stepLines as $idx => $sl) {
+                    $stepNum = $idx + 1;
+                    $stepsData[] = ['step' => $stepNum, 'text' => $stripPrefix($sl)];
+                    $order[] = (string)$stepNum;
+                }
+                $out[] = [
+                    'qtype' => 'arrangingsteps',
+                    'text' => 'Arrange the following steps in correct order',
+                    'steps_data' => json_encode($stepsData),
+                    'answer' => implode('-', $order),
+                    'points' => count($stepsData),
+                    'a' => null, 'b' => null, 'c' => null, 'd' => null
+                ];
+                $i = $j - 1;
+            }
+            continue;
+        }
+
+        // Identification: _____ 1. manure _____ 6. rice hull (two per line)
+        if ($curSection === 'identification' && strpos($ln, '___') !== false) {
+            $items = $extractInlineIdent($ln);
+            if (!empty($items)) {
+                foreach ($items as $it) {
+                    $out[] = [
+                        'qtype' => 'identification',
+                        'text' => $it['text'],
+                        'steps_data' => null,
+                        'correct_answer' => '',
+                        'points' => 1,
+                        'a' => null, 'b' => null, 'c' => null, 'd' => null,
+                        'answer' => ''
+                    ];
+                }
+                continue;
+            }
+        }
+
+        // True/False: ________1. statement
+        if ($curSection === 'truefalse' && preg_match('/^[_\-\s]{3,}/', $ln)) {
+            $cleaned = $stripQnum($stripPrefix($ln));
+            if ($cleaned !== '') {
+                $out[] = [
+                    'qtype' => 'truefalse',
+                    'text' => $cleaned,
+                    'steps_data' => null,
+                    'correct_answer' => '',
+                    'points' => 1,
+                    'a' => null, 'b' => null, 'c' => null, 'd' => null,
+                    'answer' => ''
+                ];
+                continue;
+            }
+        }
+
+        // Multiple choice: 1. question? A. opt B. opt C. opt D. opt
+        if (($curSection === 'mcq' || $curSection === null) && preg_match('/^\s*\d+\s*[.):\-]\s*\S/', $ln)) {
+            $qtext = $stripQ($ln);
+            $qlines = [$qtext];
+            while ($i + 1 < count($lines) && preg_match('/^[A-D][.):]/', $lines[$i + 1])) {
+                $i++;
+                $qlines[] = $lines[$i];
             }
             $q = [
-                'qtype' => 'arrangingsteps',
-                'steps_data' => json_encode($steps_arr),
-                'answer' => implode('-', $order_arr),
-                'points' => count($steps_arr),
-                'a' => null, 'b' => null, 'c' => null, 'd' => null
+                'qtype' => 'mcq',
+                'text' => $qtext,
+                'a' => null, 'b' => null, 'c' => null, 'd' => null,
+                'steps_data' => null,
+                'correct_answer' => '',
+                'points' => 1,
+                'answer' => ''
             ];
-            $qtext_lines = [];
-            foreach ($non_step_lines as $nsl) {
-                if (!preg_match('/^type\s*[:\-]/i', $nsl)
-                    && !preg_match('/^points?\s*[:\-]/i', $nsl)
-                    && !preg_match('/^(answer|ans|correct\s*answer)s?\s*[:\-\.]?\s*.+/i', $nsl)) {
-                    $qtext_lines[] = preg_replace('/^(Q\s*\d+(?:\s*-\s*Q?\s*\d+)?|Question\s*\d+|\d+)\s*[\.\)\:\-]\s*/i', '', $nsl);
+            foreach ($qlines as $optLine) {
+                if (preg_match('/^[A-D][.):]/', $optLine)) {
+                    $parts = $splitOptionParts($optLine);
+                    $assignOptions($q, $parts);
                 }
-            }
-            $q['text'] = trim(implode(' ', $qtext_lines));
-            if ($q['text'] === '') {
-                $q['text'] = 'Arrange the following steps in correct order';
             }
             $out[] = $q;
             continue;
         }
 
-        $q = ['text' => '', 'a' => null, 'b' => null, 'c' => null, 'd' => null,
-              'answer' => '', 'points' => 1, 'qtype' => 'mcq', 'steps_data' => null];
-        $qlines = [];
-        foreach ($lines as $ln) {
-            if (preg_match('/^\(?([A-Da-d])[\)\.\:]\s*(.+)$/', $ln, $m) && !preg_match('/^answer/i', $ln)) {
-                $L = strtolower($m[1]); $rest = trim($m[2]);
-                // Split inline options on one line: "A. X   B. Y   C. Z   D. W"
-                $segments = preg_split('/\s+(?=[A-Da-d][\.\)\:]\s*)/', $rest);
-                $q[$L] = trim($segments[0]);
-                $letters = ['a', 'b', 'c', 'd'];
-                $li = array_search($L, $letters, true);
-                foreach ($segments as $si => $seg) {
-                    if ($si === 0) continue;
-                    $next = $letters[$li + $si] ?? null;
-                    if ($next !== null) {
-                        $q[$next] = trim(preg_replace('/^[A-Da-d][\.\)\:]\s*/', '', $seg));
-                    }
+        // Answer: B
+        $ansMatch = [];
+        if (preg_match('/^(answer|ans|correct\s*answer)\s*(?:key)?\s*[:.\-]\s*(.+)$/i', $ln, $ansMatch)) {
+            $ans = trim($ansMatch[2]);
+            if (!empty($out)) {
+                $last = &$out[count($out) - 1];
+                $last['answer'] = $ans;
+                if ($last['qtype'] === 'mcq') {
+                    $clean = preg_replace('/[^A-Za-z]/', '', $ans);
+                    $last['answer'] = strtoupper(substr($clean, 0, 1));
                 }
-            } elseif (preg_match('/^(answer|ans|correct\s*answer)\s*(?:key)?\s*[:\-\.]?\s*(.+)$/i', $ln, $m)) {
-                $q['answer'] = trim($m[2]);
-            } elseif (preg_match('/^points?\s*[:\-]?\s*(\d+)/i', $ln, $m)
-                   || preg_match('/^\(?(\d+)\s*points?\)?$/i', $ln, $m)) {
-                $q['points'] = max(1, (int)$m[1]);
-            } elseif (preg_match('/^(type|qtype)\s*[:\-]\s*(.+)$/i', $ln, $m)) {
-                $t = strtolower(trim($m[2]));
-                if (strpos($t, 'true') !== false) $q['qtype'] = 'truefalse';
-                elseif (strpos($t, 'ident') !== false) $q['qtype'] = 'identification';
-            } else {
-                // strip leading "Q1.", "1.", "Q:", "Question 1:" etc.
-                $qlines[] = preg_replace('/^(Q\s*\d*|Question\s*\d+|\d+)\s*[\.\)\:\-]\s*/i', '', $ln);
             }
+            continue;
         }
-        // Fallback for Word auto-numbered lists (numbers live in Word,
-        // not in the text): answer is a letter + trailing bare lines = options.
-        $hasOpts = $q['a'] !== null || $q['b'] !== null;
-        if (!$hasOpts && preg_match('/^[A-D]$/i', $q['answer']) && count($qlines) >= 3) {
-            $take = min(4, count($qlines) - 1);
-            $opts = array_splice($qlines, -$take);
-            foreach (['a', 'b', 'c', 'd'] as $i => $k) {
-                if (isset($opts[$i])) $q[$k] = $opts[$i];
+
+        // Points: 2
+        $ptsMatch = [];
+        if (preg_match('/^points?\s*[:\-]?\s*(\d+)/i', $ln, $ptsMatch)) {
+            if (!empty($out)) {
+                $out[count($out) - 1]['points'] = max(1, (int)$ptsMatch[1]);
             }
-            $hasOpts = true;
+            continue;
         }
-        $q['text'] = implode(' ', $qlines);
-        if ($q['text'] === '' || $q['answer'] === '') continue; // skip incomplete
-        // auto-detect type when not explicit
-        $ans = strtolower($q['answer']);
-        if (!$hasOpts && in_array($ans, ['true', 'false'], true)) $q['qtype'] = 'truefalse';
-        elseif (!$hasOpts) $q['qtype'] = 'identification';
-        if ($q['qtype'] === 'mcq') {
-            $clean = preg_replace('/[^A-Za-z]/', '', $q['answer']);
-            $q['answer'] = strtoupper(substr($clean, 0, 1));
-        }
-        $out[] = $q;
     }
-    return $out;
+
+    // Answer key block at end: "Answers: 1.B 2.A 3.C"
+    if (preg_match('/answers?\s*:\s*(.+)/i', $text, $keyMatch)) {
+        $entries = preg_split('/\s+/', $keyMatch[1]);
+        foreach ($entries as $e) {
+            if (preg_match('/^(\d+)\s*[.):\-]?\s*([A-Za-z])/i', $e, $m)) {
+                $idx = (int)$m[1] - 1;
+                if (isset($out[$idx])) {
+                    $out[$idx]['answer'] = strtoupper($m[2]);
+                }
+            }
+        }
+    }
+
+    // Fallback normalization for output fields expected by DB insertion
+    $finalOut = [];
+    foreach ($out as $q) {
+        $q['answer'] = $q['answer'] !== '' ? $q['answer'] : 'X'; // default placeholder if answer missing
+        if ($q['qtype'] === 'mcq') {
+            $q['answer'] = strtoupper(substr($q['answer'], 0, 1));
+        }
+        $finalOut[] = $q;
+    }
+    return $finalOut;
 }
 
 $imported = 0; $error = '';

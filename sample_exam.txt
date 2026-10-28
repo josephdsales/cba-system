@@ -21,3 +21,10 @@ Points: 1
 Q4. Who is the national hero of the Philippines?
 Answer: Jose Rizal
 Points: 2
+
+Q5. Arrange the following steps in the correct order.
+Type: Arranging Steps
+Step 1. Open the box
+Step 2. Remove the manual
+Step 3. Plug in the power cord
+Step 4. Turn the power on
