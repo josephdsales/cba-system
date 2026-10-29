@@ -274,7 +274,10 @@ if ($best_rows) {
         $reach = 0; $sum = 0;
         foreach ($list as $r) { $sum += (float)$r['score']; if ((float)$r['score'] >= $cut) $reach++; }
         $n = count($list);
-        return ['n' => $n, 'reach' => $reach, 'mps' => ($n > 0 && $total > 0) ? round($sum / $n / $total * 100, 2) : null];
+        return ['n' => $n, 'reach' => $reach,
+            // % of this group that reached the MPL
+            'pct' => ($n > 0) ? round($reach / $n * 100, 1) : 0,
+            'mps' => ($n > 0 && $total > 0) ? round($sum / $n / $total * 100, 2) : null];
     };
     $male = array_values(array_filter($best_rows, function ($r) { return ($r['gender'] ?? '') === 'Male'; }));
     $female = array_values(array_filter($best_rows, function ($r) { return ($r['gender'] ?? '') === 'Female'; }));
@@ -415,9 +418,8 @@ foreach ($exams as $x) { if ((int)$x['id'] === $sel) { $selTitle = $x['title']; 
 </div>
 <?php if ($mpl !== null): ?>
 <div class="grid two">
-  <div class="card stat"><div class="n"><?= $mpl['cut'] ?> pts</div><div class="l">MPL — minimum proficiency level</div>
-    <div class="l"><b><?= $mpl['pct'] ?>%</b> (<?= e($mpl['cut']) ?> of <?= e($mpl['total']) ?> pts)</div>
-    <div class="l">Male: <b><?= $mpl['male']['reach'] ?>/<?= $mpl['male']['n'] ?></b> · Female: <b><?= $mpl['female']['reach'] ?>/<?= $mpl['female']['n'] ?></b> · All: <b><?= $mpl['all']['reach'] ?>/<?= $mpl['all']['n'] ?></b></div></div>
+  <div class="card stat"><div class="n"><?= $mpl['cut'] ?> pts</div><div class="l">MPL — minimum proficiency level (<?= $mpl['pct'] ?>% of <?= e($mpl['total']) ?>)</div>
+    <div class="l">Male: <b><?= $mpl['male']['reach'] ?>/<?= $mpl['male']['n'] ?> (<?= $mpl['male']['pct'] ?>%)</b> · Female: <b><?= $mpl['female']['reach'] ?>/<?= $mpl['female']['n'] ?> (<?= $mpl['female']['pct'] ?>%)</b> · All: <b><?= $mpl['all']['reach'] ?>/<?= $mpl['all']['n'] ?> (<?= $mpl['all']['pct'] ?>%)</b></div></div>
   <div class="card stat"><div class="n"><?= $mpl['all']['mps'] ?>%</div><div class="l">MPS — mean percentage score</div>
     <div class="l">Male: <b><?= $mpl['male']['mps'] === null ? '—' : $mpl['male']['mps'] . '%' ?></b> · Female: <b><?= $mpl['female']['mps'] === null ? '—' : $mpl['female']['mps'] . '%' ?></b></div></div>
 </div>
