@@ -278,7 +278,7 @@ if ($best_rows) {
     };
     $male = array_values(array_filter($best_rows, function ($r) { return ($r['gender'] ?? '') === 'Male'; }));
     $female = array_values(array_filter($best_rows, function ($r) { return ($r['gender'] ?? '') === 'Female'; }));
-    $mpl = ['cut' => $cut, 'total' => $best_rows[0]['total'],
+    $mpl = ['cut' => $cut, 'pct' => ($total > 0) ? round($cut / $total * 100, 1) : 0, 'total' => $best_rows[0]['total'],
         'all' => $grp($best_rows), 'male' => $grp($male), 'female' => $grp($female)];
 }
 $topn = isset($_GET['topn']) ? max(1, min(20, (int)$_GET['topn'])) : 5;
@@ -415,7 +415,8 @@ foreach ($exams as $x) { if ((int)$x['id'] === $sel) { $selTitle = $x['title']; 
 </div>
 <?php if ($mpl !== null): ?>
 <div class="grid two">
-  <div class="card stat"><div class="n"><?= $mpl['cut'] ?> pts</div><div class="l">MPL — minimum proficiency level (60% of <?= e($mpl['total']) ?>)</div>
+  <div class="card stat"><div class="n"><?= $mpl['cut'] ?> pts</div><div class="l">MPL — minimum proficiency level</div>
+    <div class="l"><b><?= $mpl['pct'] ?>%</b> (<?= e($mpl['cut']) ?> of <?= e($mpl['total']) ?> pts)</div>
     <div class="l">Male: <b><?= $mpl['male']['reach'] ?>/<?= $mpl['male']['n'] ?></b> · Female: <b><?= $mpl['female']['reach'] ?>/<?= $mpl['female']['n'] ?></b> · All: <b><?= $mpl['all']['reach'] ?>/<?= $mpl['all']['n'] ?></b></div></div>
   <div class="card stat"><div class="n"><?= $mpl['all']['mps'] ?>%</div><div class="l">MPS — mean percentage score</div>
     <div class="l">Male: <b><?= $mpl['male']['mps'] === null ? '—' : $mpl['male']['mps'] . '%' ?></b> · Female: <b><?= $mpl['female']['mps'] === null ? '—' : $mpl['female']['mps'] . '%' ?></b></div></div>
