@@ -35,7 +35,7 @@ if ($user['role'] === 'admin') {
         <div class="btnrow"><a class="btn" href="teacher_exams.php">Open Exams</a><a class="btn ghost" href="teacher_exams.php?action=new">+ New Exam</a><a class="btn ghost" href="teacher_grade.php">Grading (<?= $pend ?>)</a></div></div>
       <div class="card"><h3 style="margin-top:0">👥 Sections (<?= $sec ?>)</h3>
         <p class="hint">Add, edit, delete sections used at student registration.</p>
-        <div class="btnrow"><a class="btn" href="teacher_sections.php">Manage Sections</a><a class="btn ghost" href="teacher_results.php">View Results</a></div></div>
+        <div class="btnrow"><a class="btn" href="teacher_sections.php">Manage Sections</a><a class="btn ghost" href="teacher_results.php">View Results</a><a class="btn ghost" href="teacher_password.php">🔑 Password</a></div></div>
     </div>
     <?php
 } else {
@@ -46,6 +46,7 @@ if ($user['role'] === 'admin') {
     ?>
     <div class="card">
       <p>Hi <b><?= e($user['fullname']) ?></b>! Section: <b><?= e($user['section_name'] ?? '—') ?></b></p>
+      <div class="btnrow"><a class="btn small ghost" href="student_password.php">🔑 Change password</a></div>
     </div>
     <div class="grid two">
       <div class="card stat"><div class="n"><?= $open ?></div><div class="l">Available exams</div><div class="btnrow" style="justify-content:center"><a class="btn small" href="student_exams.php">Take Exam</a></div></div>

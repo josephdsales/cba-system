@@ -23,7 +23,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $username = trim($_POST['username'] ?? '');
         $password = $_POST['password'] ?? '';
         try {
-            $st = db()->prepare('SELECT u.*, s.name AS section_name FROM users u LEFT JOIN sections s ON s.id=u.section_id WHERE u.username=?');
+            // LOWER() on both sides: usernames are case-insensitive (Postgres is
+            // case-sensitive by default, MySQL _ci collations are not).
+            $st = db()->prepare('SELECT u.*, s.name AS section_name FROM users u LEFT JOIN sections s ON s.id=u.section_id WHERE LOWER(u.username)=LOWER(?)');
             $st->execute([$username]);
             $u = $st->fetch();
             if ($u && password_verify($password, $u['password_hash'])) {

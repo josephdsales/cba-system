@@ -31,9 +31,11 @@ $flash_msg = flash();
           <a href="teacher_sections.php">Sections</a>
           <a href="teacher_results.php">Results</a>
           <a href="teacher_grade.php">Grading</a>
+          <a href="teacher_password.php">Password</a>
         <?php else: ?>
           <a href="student_exams.php">Exams</a>
           <a href="student_scores.php">My Scores</a>
+          <a href="student_password.php">Password</a>
         <?php endif; ?>
         <a href="logout.php">Logout</a>
       <?php else: ?>

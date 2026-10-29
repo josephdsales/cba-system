@@ -23,6 +23,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     elseif (strlen($username) < 3) $error = 'Username must be at least 3 characters.';
     elseif (strlen($p1) < 6) $error = 'Password must be at least 6 characters.';
     elseif ($p1 !== $p2) $error = 'Passwords do not match.';
+    elseif (username_taken($username)) $error = 'Username already taken. Choose another.';
     else {
         try {
             $st = db()->prepare("INSERT INTO users (fullname, lastname, firstname, mi, gender, section_id, username, password_hash, role)

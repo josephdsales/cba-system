@@ -282,6 +282,14 @@ if ($best_rows) {
         'all' => $grp($best_rows), 'male' => $grp($male), 'female' => $grp($female)];
 }
 $topn = isset($_GET['topn']) ? max(1, min(20, (int)$_GET['topn'])) : 5;
+// Actual item numbers (1..N) as the exam lists them, by sort_order.
+$item_no_map = [];
+if ($sel) {
+    $st = db()->prepare('SELECT id FROM questions WHERE exam_id=? ORDER BY sort_order, id');
+    $st->execute([$sel]);
+    $n = 0;
+    foreach ($st->fetchAll() as $qr) { $item_no_map[$qr['id']] = ++$n; }
+}
 $analysis = [];
 $item_analysis = [];
 if ($sel && $best_rows) {
@@ -296,17 +304,20 @@ if ($sel && $best_rows) {
             GROUP BY student_id
         ) best ON best.student_id=t.student_id AND best.max_pct=t.percentage
         WHERE q.exam_id=? AND (an.id IS NULL OR t.id IS NOT NULL)
-        GROUP BY q.id, q.question_text, q.qtype, q.option_a, q.option_b, q.option_c, q.option_d, q.correct_answer, q.points");
+        GROUP BY q.id, q.question_text, q.qtype, q.option_a, q.option_b, q.option_c, q.option_d, q.correct_answer, q.points
+        ORDER BY MIN(q.sort_order), MIN(q.id)");
     $st->execute([$sel, $sel]);
     foreach ($st->fetchAll() as $r) {
         $tries = (int)$r['tries'];
         if ($tries > 0) {
             $pct = round($r['got'] / $tries * 100, 1);
-            $analysis[] = ['text' => $r['question_text'], 'pct' => $pct, 'got' => $r['got'], 'tries' => $tries];
+            $item_no = $item_no_map[$r['id']] ?? 0;
+            $analysis[] = ['text' => $r['question_text'], 'item_no' => $item_no, 'pct' => $pct, 'got' => $r['got'], 'tries' => $tries];
             
             // Item analysis for each question
             $item = [
                 'id' => $r['id'],
+                'item_no' => $item_no,
                 'text' => $r['question_text'],
                 'qtype' => $r['qtype'],
                 'pct' => $pct,
@@ -422,11 +433,11 @@ foreach ($exams as $x) { if ((int)$x['id'] === $sel) { $selTitle = $x['title']; 
   <div class="grid two">
     <div><h4 style="color:var(--ok)">✓ Easiest <?= $topn ?></h4>
       <ol><?php foreach (array_slice($analysis, 0, $topn) as $a): ?>
-        <li><?= e(mb_strimwidth($a['text'], 0, 90, '…')) ?> — <b><?= $a['pct'] ?>%</b> <small class="hint">(<?= $a['got'] ?>/<?= $a['tries'] ?> correct)</small></li>
+        <li>Item <?= (int)$a['item_no'] ?>: <?= e(mb_strimwidth($a['text'], 0, 90, '…')) ?> — <b><?= $a['pct'] ?>%</b> <small class="hint">(<?= $a['got'] ?>/<?= $a['tries'] ?> correct)</small></li>
       <?php endforeach; ?></ol></div>
     <div><h4 style="color:var(--bad)">✗ Hardest <?= $topn ?></h4>
       <ol><?php foreach (array_slice(array_reverse($analysis), 0, $topn) as $a): ?>
-        <li><?= e(mb_strimwidth($a['text'], 0, 90, '…')) ?> — <b><?= $a['pct'] ?>%</b> <small class="hint">(<?= $a['got'] ?>/<?= $a['tries'] ?> correct)</small></li>
+        <li>Item <?= (int)$a['item_no'] ?>: <?= e(mb_strimwidth($a['text'], 0, 90, '…')) ?> — <b><?= $a['pct'] ?>%</b> <small class="hint">(<?= $a['got'] ?>/<?= $a['tries'] ?> correct)</small></li>
       <?php endforeach; ?></ol></div>
   </div>
 </div>
@@ -604,9 +615,9 @@ function filterResultRows() {
           </tr>
         </thead>
         <tbody>
-          <?php $qnum = 1; foreach ($item_analysis as $ia): ?>
+          <?php foreach ($item_analysis as $ia): ?>
           <tr style="border-bottom:1px solid var(--line)">
-            <td style="padding:8px"><?= $qnum++ ?></td>
+            <td style="padding:8px;font-weight:600"><?= (int)$ia['item_no'] ?></td>
             <td style="padding:8px;max-width:300px"><?= e(mb_strimwidth($ia['text'], 0, 120, '…')) ?></td>
             <td style="text-align:center;padding:8px"><span class="badge b-<?= $ia['qtype'] === 'mcq' ? 'draft' : ($ia['qtype'] === 'truefalse' ? 'published' : 'closed') ?>"><?= e($ia['qtype']) ?></span></td>
             <td style="text-align:center;padding:8px;color:var(--ok);font-weight:600"><?= $ia['got'] ?></td>

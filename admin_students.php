@@ -28,12 +28,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (strlen($last) < 2 || strlen($first) < 2 || strlen($username) < 3) {
             set_flash('Last name, first name (min 2 chars) and username (min 3 chars) are required.');
         } else {
-            try {
-                $fullname = $last . ', ' . $first . ($mi ? ' ' . $mi : '');
-                $st = db()->prepare("UPDATE users SET fullname=?, lastname=?, firstname=?, mi=?, gender=?, section_id=?, username=? WHERE id=? AND role='student'");
-                $st->execute([$fullname, $last, $first, $mi, $gender, $section ?: null, $username, $id]);
-                set_flash('Student details updated.');
-            } catch (PDOException $ex) { set_flash('Save failed: ' . $ex->getMessage()); }
+            if (username_taken($username, $id)) {
+                set_flash('Username already taken. Choose another.');
+            } else {
+                try {
+                    $fullname = $last . ', ' . $first . ($mi ? ' ' . $mi : '');
+                    $st = db()->prepare("UPDATE users SET fullname=?, lastname=?, firstname=?, mi=?, gender=?, section_id=?, username=? WHERE id=? AND role='student'");
+                    $st->execute([$fullname, $last, $first, $mi, $gender, $section ?: null, $username, $id]);
+                    set_flash('Student details updated.');
+                } catch (PDOException $ex) { set_flash('Save failed: ' . $ex->getMessage()); }
+            }
         }
         header('Location: ' . $back); exit;
     }

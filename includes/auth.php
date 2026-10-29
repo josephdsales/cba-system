@@ -65,6 +65,16 @@ function check_csrf(): void {
     }
 }
 
+// Case-insensitive duplicate-username check. MySQL's default _ci collations
+// already compare usernames case-insensitively, but Postgres (Neon) is
+// case-sensitive — so all username comparisons use LOWER() on both sides.
+// Excludes $exclude_id so a user keeps their own username when editing.
+function username_taken(string $username, int $exclude_id = 0): bool {
+    $st = db()->prepare('SELECT 1 FROM users WHERE LOWER(username)=LOWER(?) AND id<>?');
+    $st->execute([$username, $exclude_id]);
+    return (bool)$st->fetch();
+}
+
 // Sections visible to a teacher: all sections, but they can only edit assigned ones.
 // Admins don't use this (they see everything).
 function visible_sections(int $teacher_id): array {

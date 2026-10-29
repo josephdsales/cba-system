@@ -24,25 +24,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $pass = $_POST['password'] ?? '';
         if (strlen($last) < 2 || strlen($first) < 2 || strlen($username) < 3) set_flash('Last name, first name (min 2 chars) and username (min 3 chars) required.');
         else {
-            try {
-                if ($id > 0) {
-                    if ($pass !== '') {
-                        $st = db()->prepare("UPDATE users SET fullname=?, lastname=?, firstname=?, mi=?, gender=?, username=?, password_hash=? WHERE id=? AND role='teacher'");
-                        $st->execute([$fullname, $last, $first, $mi, $gender, $username, password_hash($pass, PASSWORD_DEFAULT), $id]);
+            if (username_taken($username, $id)) {
+                set_flash('Username already taken. Choose another.');
+            } else {
+                try {
+                    if ($id > 0) {
+                        if ($pass !== '') {
+                            $st = db()->prepare("UPDATE users SET fullname=?, lastname=?, firstname=?, mi=?, gender=?, username=?, password_hash=? WHERE id=? AND role='teacher'");
+                            $st->execute([$fullname, $last, $first, $mi, $gender, $username, password_hash($pass, PASSWORD_DEFAULT), $id]);
+                        } else {
+                            $st = db()->prepare("UPDATE users SET fullname=?, lastname=?, firstname=?, mi=?, gender=?, username=? WHERE id=? AND role='teacher'");
+                            $st->execute([$fullname, $last, $first, $mi, $gender, $username, $id]);
+                        }
+                        set_flash('Teacher updated.');
                     } else {
-                        $st = db()->prepare("UPDATE users SET fullname=?, lastname=?, firstname=?, mi=?, gender=?, username=? WHERE id=? AND role='teacher'");
-                        $st->execute([$fullname, $last, $first, $mi, $gender, $username, $id]);
+                        if (strlen($pass) < 6) set_flash('New teacher needs a password (min 6 chars).');
+                        else {
+                            $st = db()->prepare("INSERT INTO users (fullname, lastname, firstname, mi, gender, username, password_hash, role) VALUES (?, ?, ?, ?, ?, ?, ?, 'teacher')");
+                            $st->execute([$fullname, $last, $first, $mi, $gender, $username, password_hash($pass, PASSWORD_DEFAULT)]);
+                            set_flash('Teacher added.');
+                        }
                     }
-                    set_flash('Teacher updated.');
-                } else {
-                    if (strlen($pass) < 6) set_flash('New teacher needs a password (min 6 chars).');
-                    else {
-                        $st = db()->prepare("INSERT INTO users (fullname, lastname, firstname, mi, gender, username, password_hash, role) VALUES (?, ?, ?, ?, ?, ?, ?, 'teacher')");
-                        $st->execute([$fullname, $last, $first, $mi, $gender, $username, password_hash($pass, PASSWORD_DEFAULT)]);
-                        set_flash('Teacher added.');
-                    }
-                }
-            } catch (PDOException $ex) { set_flash('Save failed: ' . $ex->getMessage()); }
+                } catch (PDOException $ex) { set_flash('Save failed: ' . $ex->getMessage()); }
+            }
         }
         header('Location: admin_teachers.php'); exit;
     }

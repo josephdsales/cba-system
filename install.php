@@ -17,7 +17,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ensure_schema(db());
             $hash = password_hash($admin_pass, PASSWORD_DEFAULT);
             // Portable upsert (works on MySQL and Postgres): update if username exists, else insert.
-            $st = db()->prepare('SELECT id FROM users WHERE username=?');
+            // LOWER(): usernames are case-insensitive — "Admin" and "admin" are the same account.
+            $st = db()->prepare('SELECT id FROM users WHERE LOWER(username)=LOWER(?)');
             $st->execute([$admin_user]);
             if ($row = $st->fetch()) {
                 $st = db()->prepare("UPDATE users SET fullname=?, password_hash=?, role='admin' WHERE id=?");
