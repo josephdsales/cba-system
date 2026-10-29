@@ -57,6 +57,34 @@ include __DIR__ . '/includes/header.php';
         </div>
       <?php endif; ?>
     <?php endforeach; ?>
+  <?php elseif ($q['qtype'] === 'arrangingsteps'):
+    $steps = json_decode($q['steps_data'] ?? '[]', true);
+    if (!is_array($steps)) $steps = [];
+    $step_label = function($num) use ($steps) {
+      $num = trim((string)$num);
+      foreach ($steps as $s) {
+        if ((string)($s['step'] ?? '') === $num || ($s['text'] ?? '') === $num) return (string)($s['text'] ?? $num);
+      }
+      return $num;
+    };
+    // Same position-by-position check the grader used.
+    $correct_seq = array_values(array_filter(array_map('trim', explode('-', trim((string)$q['correct_answer'])))));
+    $student_order = array_values(array_filter(array_map('trim', explode('-', (string)$mine))));
+  ?>
+    <p style="margin:6px 0"><b>Student's answer (in the order placed):</b></p>
+    <?php foreach ($student_order as $index => $step_num):
+      $step_ok = isset($correct_seq[$index]) && $correct_seq[$index] === $step_num;
+    ?>
+      <div class="opt" style="border-width:2px;<?= $step_ok ? 'border-color:#16a34a;background:#f0fdf4' : 'border-color:#dc2626;background:#fef2f2' ?>">
+        <b><?= $index + 1 ?>.</b> <?= e($step_label($step_num)) ?>
+        <?= $step_ok ? '<span class="badge b-published">✓ Correct</span>' : '<span class="badge b-closed">✗ Incorrect</span>' ?>
+      </div>
+    <?php endforeach; ?>
+    <?php if (empty($student_order)): ?><div class="opt"><i>No answer provided</i></div><?php endif; ?>
+    <p style="margin:6px 0"><b>Correct order:</b></p>
+    <?php foreach ($correct_seq as $index => $step_num): ?>
+      <div class="opt"><b><?= $index + 1 ?>.</b> <?= e($step_label($step_num)) ?></div>
+    <?php endforeach; ?>
   <?php else: ?>
     <p style="margin:6px 0">Correct answer: <b><?= e($q['correct_answer']) ?></b><br>
     Student's answer: <b><?= e($mine !== '' && $mine !== null ? $mine : '(blank)') ?></b></p>
