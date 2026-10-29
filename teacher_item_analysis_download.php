@@ -15,7 +15,23 @@ $st = db()->prepare('SELECT fullname FROM users WHERE id=?');
 $st->execute([$user['id']]);
 $teacher = $st->fetch();
 
-// Determine section info
+// Get best attempt per student for this exam
+$st = db()->prepare("SELECT a.*, u.fullname, u.username, u.gender, u.lastname, u.firstname, s.name AS section_name
+    FROM attempts a
+    JOIN users u ON u.id=a.student_id
+    LEFT JOIN sections s ON s.id=u.section_id
+    JOIN (
+        SELECT student_id, MAX(percentage) AS max_pct
+        FROM attempts
+        WHERE exam_id=? AND submitted_at IS NOT NULL
+        GROUP BY student_id
+    ) best ON best.student_id=a.student_id AND best.max_pct=a.percentage
+    WHERE a.exam_id=? AND a.submitted_at IS NOT NULL
+    ORDER BY a.percentage DESC");
+$st->execute([$exam_id, $exam_id]);
+$best_rows = $st->fetchAll();
+
+// Determine section info (after best_rows is loaded — it needs the students' sections)
 $section_name = 'All Sections';
 if (!empty($exam['section_id'])) {
     $st = db()->prepare('SELECT name FROM sections WHERE id=?');
@@ -32,22 +48,6 @@ if (!empty($exam['section_id'])) {
         $section_name = 'Multiple Sections';
     }
 }
-
-// Get best attempt per student for this exam
-$st = db()->prepare("SELECT a.*, u.fullname, u.username, u.gender, u.lastname, u.firstname, s.name AS section_name
-    FROM attempts a
-    JOIN users u ON u.id=a.student_id
-    LEFT JOIN sections s ON s.id=u.section_id
-    JOIN (
-        SELECT student_id, MAX(percentage) AS max_pct
-        FROM attempts
-        WHERE exam_id=? AND submitted_at IS NOT NULL
-        GROUP BY student_id
-    ) best ON best.student_id=a.student_id AND best.max_pct=a.percentage
-    WHERE a.exam_id=? AND a.submitted_at IS NOT NULL
-    ORDER BY a.percentage DESC");
-$st->execute([$exam_id, $exam_id]);
-$best_rows = $st->fetchAll();
 
 // Get questions with analysis
 $st = db()->prepare("SELECT q.id, q.question_text, q.qtype, q.option_a, q.option_b, q.option_c, q.option_d, q.correct_answer, q.points

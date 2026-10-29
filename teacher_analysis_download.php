@@ -17,6 +17,13 @@ $takers = (int)$st->fetchColumn();
 // Same Top-N setting as the page (teacher_results.php line 171)
 $topn = isset($_GET['topn']) ? max(1, min(20, (int)$_GET['topn'])) : 5;
 
+// Actual item numbers (1..N) by sort_order — same numbering as teacher_results.php.
+$item_no_map = [];
+$st = db()->prepare('SELECT id FROM questions WHERE exam_id=? ORDER BY sort_order, id');
+$st->execute([$exam_id]);
+$n = 0;
+foreach ($st->fetchAll() as $qr) { $item_no_map[$qr['id']] = ++$n; }
+
 // Same query as the Question analysis block on teacher_results.php,
 // so the download always matches what the page shows.
 $st = db()->prepare("SELECT q.id, q.question_text, q.qtype, q.option_a, q.option_b, q.option_c, q.option_d, q.correct_answer, q.points,
@@ -30,15 +37,16 @@ $st = db()->prepare("SELECT q.id, q.question_text, q.qtype, q.option_a, q.option
         GROUP BY student_id
     ) best ON best.student_id=t.student_id AND best.max_pct=t.percentage
     WHERE q.exam_id=? AND (an.id IS NULL OR t.id IS NOT NULL)
-    GROUP BY q.id, q.question_text, q.qtype, q.option_a, q.option_b, q.option_c, q.option_d, q.correct_answer, q.points");
+    GROUP BY q.id, q.question_text, q.qtype, q.option_a, q.option_b, q.option_c, q.option_d, q.correct_answer, q.points
+    ORDER BY MIN(q.sort_order), MIN(q.id)");
 $st->execute([$exam_id, $exam_id]);
 
 $analysis = [];
 foreach ($st->fetchAll() as $r) {
     $tries = (int)$r['tries'];
     if ($tries > 0) {
-        $analysis[] = ['text' => $r['question_text'], 'qtype' => $r['qtype'],
-            'got' => (int)$r['got'], 'tries' => $tries,
+        $analysis[] = ['text' => $r['question_text'], 'item_no' => $item_no_map[$r['id']] ?? 0,
+            'qtype' => $r['qtype'], 'got' => (int)$r['got'], 'tries' => $tries,
             'pct' => round($r['got'] / $tries * 100, 1)];
     }
 }
@@ -69,10 +77,10 @@ fputcsv($out, ['Date Generated:', date('Y-m-d H:i:s')]);
 $section = function (string $label, string $rankLabel, array $rows) use ($out) {
     fputcsv($out, []);
     fputcsv($out, [$label]);
-    fputcsv($out, [$rankLabel, 'Question', 'Type', 'Correct', 'Total', '% Correct']);
+    fputcsv($out, [$rankLabel, 'Item', 'Question', 'Type', 'Correct', 'Total', '% Correct']);
     $rank = 1;
     foreach ($rows as $a) {
-        fputcsv($out, [$rank++, $a['text'], $a['qtype'], $a['got'], $a['tries'], $a['pct'] . '%']);
+        fputcsv($out, [$rank++, $a['item_no'], $a['text'], $a['qtype'], $a['got'], $a['tries'], $a['pct'] . '%']);
     }
 };
 
