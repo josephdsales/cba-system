@@ -296,7 +296,7 @@ if ($sel) {
 $analysis = [];
 $item_analysis = [];
 if ($sel && $best_rows) {
-    $st = db()->prepare("SELECT q.id, q.question_text, q.qtype, q.option_a, q.option_b, q.option_c, q.option_d, q.correct_answer, q.points,
+    $st = db()->prepare("SELECT q.id, q.question_text, q.qtype, q.option_a, q.option_b, q.option_c, q.option_d, q.correct_answer, q.steps_data, q.points,
         COUNT(an.id) AS tries, COALESCE(SUM(an.is_correct),0) AS got
         FROM questions q LEFT JOIN answers an ON an.question_id=q.id
         LEFT JOIN attempts t ON t.id=an.attempt_id AND t.submitted_at IS NOT NULL
@@ -307,7 +307,7 @@ if ($sel && $best_rows) {
             GROUP BY student_id
         ) best ON best.student_id=t.student_id AND best.max_pct=t.percentage
         WHERE q.exam_id=? AND (an.id IS NULL OR t.id IS NOT NULL)
-        GROUP BY q.id, q.question_text, q.qtype, q.option_a, q.option_b, q.option_c, q.option_d, q.correct_answer, q.points
+        GROUP BY q.id, q.question_text, q.qtype, q.option_a, q.option_b, q.option_c, q.option_d, q.correct_answer, q.steps_data, q.points
         ORDER BY MIN(q.sort_order), MIN(q.id)");
     $st->execute([$sel, $sel]);
     foreach ($st->fetchAll() as $r) {
@@ -354,6 +354,53 @@ if ($sel && $best_rows) {
                     ];
                 }
                 $item['distractors'] = $distractors;
+            } elseif ($r['qtype'] === 'arrangingsteps') {
+                // Per-step breakdown: at each position, how many students
+                // placed the correct step there (mirrors the position-by-position grader).
+                $correct_seq = array_values(array_filter(array_map('trim', explode('-', trim((string)$r['correct_answer'])))));
+                $steps_meta = json_decode($r['steps_data'] ?? '[]', true);
+                $step_text = [];
+                if (is_array($steps_meta)) {
+                    foreach ($steps_meta as $sm) {
+                        $step_text[(string)($sm['step'] ?? '')] = $sm['text'] ?? '';
+                    }
+                }
+                // All best-attempt submitted orders for this question
+                $st2 = db()->prepare("SELECT an.student_answer
+                    FROM answers an
+                    LEFT JOIN attempts t ON t.id=an.attempt_id AND t.submitted_at IS NOT NULL
+                    JOIN (
+                        SELECT student_id, MAX(percentage) AS max_pct
+                        FROM attempts
+                        WHERE exam_id=? AND submitted_at IS NOT NULL
+                        GROUP BY student_id
+                    ) best ON best.student_id=t.student_id AND best.max_pct=t.percentage
+                    WHERE an.question_id=? AND t.id IS NOT NULL AND an.student_answer IS NOT NULL");
+                $st2->execute([$sel, $r['id']]);
+                $orders = $st2->fetchAll();
+
+                $total_steps = count($correct_seq);
+                $pos_counts = array_fill(0, $total_steps, 0);
+                foreach ($orders as $o) {
+                    $sub = array_values(array_filter(array_map('trim', explode('-', (string)$o['student_answer']))));
+                    for ($i = 0; $i < $total_steps; $i++) {
+                        if (isset($sub[$i]) && $sub[$i] === $correct_seq[$i]) $pos_counts[$i]++;
+                    }
+                }
+                $n_ans = count($orders);
+                $step_breakdown = [];
+                for ($i = 0; $i < $total_steps; $i++) {
+                    $cstep = $correct_seq[$i];
+                    $step_breakdown[] = [
+                        'pos'        => $i + 1,
+                        'step_no'    => $cstep,
+                        'text'       => $step_text[$cstep] ?? ('Step ' . $cstep),
+                        'got'        => $pos_counts[$i],
+                        'answers'    => $n_ans,
+                        'pct'        => $n_ans > 0 ? round($pos_counts[$i] / $n_ans * 100, 1) : 0,
+                    ];
+                }
+                $item['steps'] = $step_breakdown;
             }
             $item_analysis[] = $item;
         }
@@ -648,6 +695,25 @@ function filterResultRows() {
               <?php endif; ?>
             </td>
           </tr>
+          <?php if ($ia['qtype'] === 'arrangingsteps' && !empty($ia['steps'])): ?>
+            <?php foreach ($ia['steps'] as $s): ?>
+            <tr style="border-bottom:1px solid var(--line);background:rgba(0,0,0,.02)">
+              <td style="padding:6px 8px 6px 26px;color:var(--muted);font-weight:400"><?= (int)$ia['item_no'] ?>.<?= (int)$s['pos'] ?></td>
+              <td style="padding:6px 8px;color:var(--muted)">
+                <small class="hint">Step <?= (int)$s['pos'] ?> should be:</small>
+                <?= e(mb_strimwidth($s['text'], 0, 110, '…')) ?>
+              </td>
+              <td style="text-align:center;padding:6px 8px"><span class="badge b-closed" style="font-size:.6rem">step</span></td>
+              <td style="text-align:center;padding:6px 8px;color:var(--ok);font-weight:600"><?= (int)$s['got'] ?></td>
+              <td style="text-align:center;padding:6px 8px;color:var(--ink);font-weight:600"><?= (int)$s['answers'] ?></td>
+              <td style="text-align:center;padding:6px 8px">
+                <span style="color:<?= $s['pct'] < 30 ? 'var(--bad)' : ($s['pct'] > 90 ? 'var(--warn)' : 'var(--ok)') ?>;font-weight:600"><?= $s['pct'] ?>%</span>
+              </td>
+              <td style="text-align:center;padding:6px 8px"><span class="hint">—</span></td>
+              <td style="padding:6px 8px"><span class="hint">—</span></td>
+            </tr>
+            <?php endforeach; ?>
+          <?php endif; ?>
           <?php endforeach; ?>
         </tbody>
       </table>
