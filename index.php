@@ -1,9 +1,11 @@
 <?php
 require __DIR__ . '/includes/config.php';
 require __DIR__ . '/includes/auth.php';
+require_once __DIR__ . '/includes/settings.php';
 
 if (current_user()) { header('Location: dashboard.php'); exit; }
 $error = '';
+$reg_open = registration_open();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     check_csrf();
@@ -49,7 +51,7 @@ include __DIR__ . '/includes/header.php';
 ?>
 <div class="card" style="max-width:480px;margin:20px auto;">
   <h2 style="margin-top:0">Welcome 👋</h2>
-  <p class="hint">One login for Admin, Teachers, and Students. New student? <a href="register.php">Create an account</a>.</p>
+  <p class="hint">One login for Admin, Teachers, and Students.<?php if ($reg_open): ?> New student? <a href="register.php">Create an account</a><?php endif; ?></p>
   <?php if ($error): ?><p style="color:#b91c1c"><b><?= e($error) ?></b></p><?php endif; ?>
   <form method="post">
     <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
@@ -58,7 +60,7 @@ include __DIR__ . '/includes/header.php';
     <label>Password</label>
     <input type="password" name="password" required autocomplete="current-password">
     <div class="btnrow"><button class="btn" type="submit">Login</button>
-    <a class="btn ghost" href="register.php">Student Registration</a></div>
+    <?php if ($reg_open): ?><a class="btn ghost" href="register.php">Student Registration</a><?php endif; ?></div>
   </form>
 
 </div>

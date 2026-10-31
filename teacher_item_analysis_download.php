@@ -50,7 +50,7 @@ if (!empty($exam['section_id'])) {
 }
 
 // Get questions with analysis
-$st = db()->prepare("SELECT q.id, q.question_text, q.qtype, q.option_a, q.option_b, q.option_c, q.option_d, q.correct_answer, q.points
+$st = db()->prepare("SELECT q.id, q.question_text, q.qtype, q.option_a, q.option_b, q.option_c, q.option_d, q.correct_answer, q.steps_data, q.points
     FROM questions q
     WHERE q.exam_id=?
     ORDER BY q.sort_order, q.id");
@@ -78,14 +78,58 @@ foreach ($questions as $q) {
     $got = (int)$stats['got'];
     $pct = $tries > 0 ? round($got / $tries * 100, 2) : 0;
     
-    $item_analysis[] = [
+    $row = [
         'id' => $q['id'],
         'text' => $q['question_text'],
         'qtype' => $q['qtype'],
         'got' => $got,
         'tries' => $tries,
         'pct' => $pct,
+        'steps' => [],
     ];
+
+    // Per-step breakdown for arranging steps (same logic as teacher_results.php)
+    if ($q['qtype'] === 'arrangingsteps') {
+        $correct_seq = array_values(array_filter(array_map('trim', explode('-', trim((string)$q['correct_answer'])))));
+        $steps_meta = json_decode($q['steps_data'] ?? '[]', true);
+        $step_text = [];
+        if (is_array($steps_meta)) {
+            foreach ($steps_meta as $sm) { $step_text[(string)($sm['step'] ?? '')] = $sm['text'] ?? ''; }
+        }
+        $st3 = db()->prepare("SELECT an.student_answer
+            FROM answers an
+            LEFT JOIN attempts t ON t.id=an.attempt_id AND t.submitted_at IS NOT NULL
+            JOIN (
+                SELECT student_id, MAX(percentage) AS max_pct
+                FROM attempts
+                WHERE exam_id=? AND submitted_at IS NOT NULL
+                GROUP BY student_id
+            ) best ON best.student_id=t.student_id AND best.max_pct=t.percentage
+            WHERE an.question_id=? AND t.id IS NOT NULL AND an.student_answer IS NOT NULL");
+        $st3->execute([$exam_id, $q['id']]);
+        $orders = $st3->fetchAll();
+        $total_steps = count($correct_seq);
+        $pos_counts = array_fill(0, $total_steps, 0);
+        foreach ($orders as $o) {
+            $sub = array_values(array_filter(array_map('trim', explode('-', (string)$o['student_answer']))));
+            for ($i = 0; $i < $total_steps; $i++) {
+                if (isset($sub[$i]) && $sub[$i] === $correct_seq[$i]) $pos_counts[$i]++;
+            }
+        }
+        $n_ans = count($orders);
+        for ($i = 0; $i < $total_steps; $i++) {
+            $cstep = $correct_seq[$i];
+            $row['steps'][] = [
+                'pos' => $i + 1,
+                'text' => $step_text[$cstep] ?? ('Step ' . $cstep),
+                'got' => $pos_counts[$i],
+                'answers' => $n_ans,
+                'pct' => $n_ans > 0 ? round($pos_counts[$i] / $n_ans * 100, 1) : 0,
+            ];
+        }
+    }
+
+    $item_analysis[] = $row;
 }
 
 // CSV output
@@ -122,13 +166,25 @@ fputcsv($out, [
 $item_num = 1;
 foreach ($item_analysis as $ia) {
     fputcsv($out, [
-        $item_num++,
+        $item_num,
         $ia['text'],
         $ia['qtype'],
         $ia['got'],
         $ia['tries'],
         $ia['pct'] . '%'
     ]);
+    // Per-step sub-rows for arranging steps (matches the modal)
+    foreach ($ia['steps'] as $s) {
+        fputcsv($out, [
+            $item_num . '.' . $s['pos'],
+            'Step ' . $s['pos'] . ' should be: ' . $s['text'],
+            'step',
+            $s['got'],
+            $s['answers'],
+            $s['pct'] . '%'
+        ]);
+    }
+    $item_num++;
 }
 
 fclose($out);

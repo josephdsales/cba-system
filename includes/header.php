@@ -1,5 +1,6 @@
 <?php
 // Shared page shell. Expects $title and $user (nullable).
+require_once __DIR__ . '/settings.php';
 if (!isset($title)) $title = APP_NAME;
 if (!array_key_exists('user', get_defined_vars())) $user = current_user();
 $flash_msg = flash();
@@ -26,6 +27,7 @@ $flash_msg = flash();
           <a href="admin_students.php">Students</a>
           <a href="admin_sections.php">Sections</a>
           <a href="admin_reports.php">Reports</a>
+          <a href="admin_settings.php">Settings</a>
         <?php elseif ($user['role'] === 'teacher'): ?>
           <a href="teacher_exams.php">Exams</a>
           <a href="teacher_sections.php">Sections</a>
@@ -40,7 +42,7 @@ $flash_msg = flash();
         <a href="logout.php">Logout</a>
       <?php else: ?>
         <a href="index.php">Login</a>
-        <a href="register.php" class="btn small">Register</a>
+        <?php if (registration_open()): ?><a href="register.php" class="btn small">Register</a><?php endif; ?>
       <?php endif; ?>
     </nav>
   </div>

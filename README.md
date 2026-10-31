@@ -73,6 +73,8 @@ The app runs on Render's **free web service**; the database is **Neon free Postg
 - Student → Register → pick section → Login → Available Exams → Take → My Scores.
 - Student / Teacher → Password (top menu) → change own password (current password required; admin can still reset any password).
 - Admin → Students → reset any password. Admin → Reports → scores/summary/highest/lowest.
+- Admin → Settings → turn student self-registration on/off (off hides the Register links and blocks `register.php` submissions).
+- Names are stored UPPERCASE (students + teachers). Existing rows: run `uppercase_names.php` once as admin → **delete it**.
 
 ## Word import format (.docx)
 
@@ -110,7 +112,8 @@ All four question types are supported: **Multiple Choice** (options `A.`–`D.` 
 |---|---|
 | `index.php` / `register.php` / `dashboard.php` / `logout.php` | Auth + routing |
 | `install.php` | One-time setup (delete after use) |
-| `admin_teachers.php` / `admin_students.php` / `admin_sections.php` / `admin_reports.php` | Admin panel |
+| `uppercase_names.php` | One-time: convert existing student/teacher names to uppercase (delete after use) |
+| `admin_teachers.php` / `admin_students.php` / `admin_sections.php` / `admin_reports.php` / `admin_settings.php` | Admin panel |
 | `teacher_exams.php` / `teacher_questions.php` / `teacher_import.php` / `teacher_results.php` / `teacher_sections.php` / `teacher_password.php` | Teacher panel |
 | `student_exams.php` / `student_take.php` / `student_scores.php` / `student_password.php` | Student panel |
 | `sections_manage.php` | Shared sections logic (admin + teacher) |

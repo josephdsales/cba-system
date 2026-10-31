@@ -1,8 +1,24 @@
 <?php
 require __DIR__ . '/includes/config.php';
 require __DIR__ . '/includes/auth.php';
+require_once __DIR__ . '/includes/settings.php';
 
 if (current_user()) { header('Location: dashboard.php'); exit; }
+
+// Admin can turn student self-registration off. Checked on GET *and* POST so
+// the form cannot be submitted by hand while registration is closed.
+if (!registration_open()) {
+    $title = 'Registration'; $user = null;
+    include __DIR__ . '/includes/header.php';
+    ?>
+    <div class="card" style="max-width:520px;margin:20px auto;text-align:center">
+      <h2 style="margin-top:0">Registration is closed</h2>
+      <p class="hint">New student accounts are not being accepted right now. Please ask your teacher or the administrator to create your account.</p>
+      <div class="btnrow" style="justify-content:center"><a class="btn" href="index.php">Back to Login</a></div>
+    </div>
+    <?php include __DIR__ . '/includes/footer.php'; exit;
+}
+
 $error = '';
 try { $sections = db()->query('SELECT * FROM sections ORDER BY name')->fetchAll(); }
 catch (Throwable $ex) { $sections = []; $error = 'Database not ready. Ask admin to run install.php first.'; }

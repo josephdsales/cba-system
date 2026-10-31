@@ -13,9 +13,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
     if ($action === 'save') {
         $id = (int)($_POST['id'] ?? 0);
-        $last = trim($_POST['lastname'] ?? '');
-        $first = trim($_POST['firstname'] ?? '');
-        $mi_raw = trim($_POST['mi'] ?? '');
+        // Names are stored UPPERCASE regardless of how they were typed.
+        $last = to_upper_name(trim($_POST['lastname'] ?? ''));
+        $first = to_upper_name(trim($_POST['firstname'] ?? ''));
+        $mi_raw = to_upper_name(trim($_POST['mi'] ?? ''));
         $mi = $mi_raw !== '' ? rtrim($mi_raw, '.') . '.' : null;
         $fullname = $last . ', ' . $first . ($mi ? ' ' . $mi : '');
         $gender = $_POST['gender'] ?? 'Other';
