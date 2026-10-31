@@ -9,10 +9,12 @@ catch (Throwable $ex) { $sections = []; $error = 'Database not ready. Ask admin 
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     check_csrf();
-    $last = trim($_POST['lastname'] ?? '');
-    $first = trim($_POST['firstname'] ?? '');
-    $mi = trim($_POST['mi'] ?? '');
-    $fullname = $last . ', ' . $first . ($mi !== '' ? ' ' . rtrim($mi, '.') . '.' : '');
+    // Names are stored UPPERCASE regardless of how they were typed.
+    $last = to_upper_name(trim($_POST['lastname'] ?? ''));
+    $first = to_upper_name(trim($_POST['firstname'] ?? ''));
+    $mi = to_upper_name(trim($_POST['mi'] ?? ''));
+    $mi = $mi !== '' ? rtrim($mi, '.') . '.' : '';
+    $fullname = $last . ', ' . $first . ($mi !== '' ? ' ' . $mi : '');
     $gender   = $_POST['gender'] ?? '';
     $section  = (int)($_POST['section_id'] ?? 0);
     $username = trim($_POST['username'] ?? '');
@@ -28,7 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             $st = db()->prepare("INSERT INTO users (fullname, lastname, firstname, mi, gender, section_id, username, password_hash, role)
                                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'student')");
-            $st->execute([$fullname, $last, $first, ($mi !== '' ? rtrim($mi, '.') . '.' : null), $gender, $section, $username, password_hash($p1, PASSWORD_DEFAULT)]);
+            $st->execute([$fullname, $last, $first, ($mi !== '' ? $mi : null), $gender, $section, $username, password_hash($p1, PASSWORD_DEFAULT)]);
             set_flash('Account created. You can now log in.');
             header('Location: index.php'); exit;
         } catch (PDOException $ex) {
@@ -46,12 +48,12 @@ include __DIR__ . '/includes/header.php';
     <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
     <div class="grid two">
       <div><label>Last name</label>
-      <input type="text" name="lastname" required value="<?= e($_POST['lastname'] ?? '') ?>" placeholder="e.g. Cruz"></div>
+      <input type="text" name="lastname" required value="<?= e($last ?? ($_POST['lastname'] ?? '')) ?>" placeholder="e.g. CRUZ"></div>
       <div><label>First name</label>
-      <input type="text" name="firstname" required value="<?= e($_POST['firstname'] ?? '') ?>" placeholder="e.g. Juan"></div>
+      <input type="text" name="firstname" required value="<?= e($first ?? ($_POST['firstname'] ?? '')) ?>" placeholder="e.g. JUAN"></div>
     </div>
     <label>Middle initial (optional)</label>
-    <input type="text" name="mi" maxlength="3" value="<?= e($_POST['mi'] ?? '') ?>" placeholder="e.g. D">
+    <input type="text" name="mi" maxlength="3" value="<?= e($mi ?? ($_POST['mi'] ?? '')) ?>" placeholder="e.g. D">
     <label>Gender</label>
     <select name="gender" required>
       <option value="">-- Select --</option>
