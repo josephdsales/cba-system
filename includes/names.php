@@ -82,3 +82,20 @@ function uppercase_result_message(array $per): string {
     foreach ($per as $role => $n) $bits[] = $n . ' ' . $role . ($n === 1 ? '' : 's');
     return 'Done — ' . implode(' and ', $bits) . ' converted to uppercase.';
 }
+
+// One-time automatic backfill: normalise every existing student/teacher name to
+// uppercase so it matches what registration now stores. Runs by itself on the
+// first page load after deploy — no button to find. A settings flag marks it
+// done, so later requests cost nothing.
+//
+// Never throws: a failed run simply retries next request.
+function ensure_names_uppercased(): void {
+    static $done = false;          // per-request guard
+    if ($done) return;
+    $done = true;
+    try {
+        if (setting_get('names_uppercased', '0') === '1') return;
+        convert_names(array_keys(selectable_roles()));
+        setting_set('names_uppercased', '1');
+    } catch (Throwable $e) { /* DB not ready — will retry next request */ }
+}

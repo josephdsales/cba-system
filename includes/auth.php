@@ -99,3 +99,15 @@ function visible_sections(int $teacher_id): array {
     $st->execute([$teacher_id]);
     return $st->fetchAll();
 }
+
+// One-time automatic backfill: normalise any legacy mixed-case student/teacher
+// names to uppercase, so they match what registration now stores. Runs on the
+// first page load after deploy and is then marked done in the settings table.
+//
+// Deliberately defensive: a missing includes/names.php (partial deploy) or a
+// DB hiccup must never break the page, so it's file_exists + try/catch guarded.
+if (file_exists(__DIR__ . '/settings.php') && file_exists(__DIR__ . '/names.php')) {
+    require_once __DIR__ . '/settings.php';   // setting_get()/setting_set()
+    require_once __DIR__ . '/names.php';
+    ensure_names_uppercased();
+}
