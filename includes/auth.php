@@ -65,6 +65,13 @@ function check_csrf(): void {
     }
 }
 
+// Names are stored UPPERCASE regardless of how they were typed.
+// mb_strtoupper handles accented Filipino names (ñ, á, ...) — plain
+// strtoupper() only maps ASCII letters and would leave them lowercase.
+function to_upper_name(string $s): string {
+    return function_exists('mb_strtoupper') ? mb_strtoupper($s, 'UTF-8') : strtoupper($s);
+}
+
 // Case-insensitive duplicate-username check. MySQL's default _ci collations
 // already compare usernames case-insensitively, but Postgres (Neon) is
 // case-sensitive — so all username comparisons use LOWER() on both sides.
