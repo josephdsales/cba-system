@@ -173,7 +173,9 @@ $section_students = [];
 if ($sections) {
     $section_ids = array_column($sections, 'id');
     $placeholders = implode(',', array_fill(0, count($section_ids), '?'));
-    $st = db()->prepare("SELECT u.*, s.name AS section_name FROM users u LEFT JOIN sections s ON s.id=u.section_id WHERE u.role='student' AND u.section_id IN ($placeholders)");
+    // Sort: Male first, then Female/Other; alphabetical (by last name) within each.
+    // fullname is stored as "Lastname, Firstname" so sorting by it sorts by last name.
+    $st = db()->prepare("SELECT u.*, s.name AS section_name FROM users u LEFT JOIN sections s ON s.id=u.section_id WHERE u.role='student' AND u.section_id IN ($placeholders) ORDER BY CASE WHEN u.gender='Male' THEN 0 ELSE 1 END, u.fullname");
     $st->execute($section_ids);
     $students = $st->fetchAll();
     foreach ($students as $stu) {
