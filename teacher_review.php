@@ -40,9 +40,7 @@ include __DIR__ . '/includes/header.php';
     $backQs = [];
     if (!empty($_GET['q'])) $backQs['q'] = $_GET['q'];
     if (!empty($_GET['student_id'])) $backQs['student_id'] = $_GET['student_id'];
-    $backUrl = !empty($backQs)
-        ? 'teacher_student_results.php?' . http_build_query($backQs)
-        : 'teacher_results.php?exam_id=' . $attempt['exam_id'];
+    $backUrl = 'teacher_student_results.php' . (!empty($backQs) ? '?' . http_build_query($backQs) : '');
     ?>
     <a class="btn ghost" href="<?= $backUrl ?>">Back to student results</a>
   </div>
