@@ -25,7 +25,7 @@ if ($q !== '') {
         WHERE u.role = 'student'
           AND e.teacher_id = ?
           AND (LOWER(u.lastname) LIKE LOWER(?) OR LOWER(u.firstname) LIKE LOWER(?))
-        GROUP BY u.id
+        GROUP BY u.id, u.fullname, u.username, u.lastname, u.firstname, s.name
         ORDER BY u.lastname, u.firstname");
     $st->execute([$user['id'], '%' . $q . '%', '%' . $q . '%']);
     $students = $st->fetchAll();
