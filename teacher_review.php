@@ -40,9 +40,13 @@ include __DIR__ . '/includes/header.php';
     $backQs = [];
     if (!empty($_GET['q'])) $backQs['q'] = $_GET['q'];
     if (!empty($_GET['student_id'])) $backQs['student_id'] = $_GET['student_id'];
-    $backUrl = 'teacher_student_results.php' . (!empty($backQs) ? '?' . http_build_query($backQs) : '');
+    if (!empty($backQs)) {
+        $backUrl = 'teacher_student_results.php?' . http_build_query($backQs);
+    } else {
+        $backUrl = 'teacher_results.php?exam_id=' . (int)$attempt['exam_id'];
+    }
     ?>
-    <a class="btn ghost" href="<?= $backUrl ?>">Back to student results</a>
+    <a class="btn ghost" href="<?= $backUrl ?>">Back</a>
   </div>
 </div>
 <?php $i = 1; foreach ($items as $q):
