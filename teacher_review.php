@@ -3,6 +3,8 @@
 // Unlike the student view, the correct answer IS shown here.
 require __DIR__ . '/includes/config.php';
 require __DIR__ . '/includes/auth.php';
+require_once __DIR__ . '/includes/schema.php';
+ensure_anti_cheat();
 $user = require_role('teacher');
 
 $attempt_id = (int)($_GET['attempt_id'] ?? 0);
@@ -33,7 +35,13 @@ include __DIR__ . '/includes/header.php';
   <p style="margin:0"><b><?= e($attempt['title']) ?></b> — <?= e($attempt['student_name']) ?>
     <small class="hint">(<?= e($attempt['section_name'] ?? '—') ?>)</small><br>
     Score: <b><?= e($attempt['score']) ?>/<?= e($attempt['total']) ?> (<?= e($attempt['percentage']) ?>%)</b>
-    · submitted <?= e(date('m-d-Y H:i:s', strtotime($attempt['submitted_at']))) ?></p>
+    · submitted <?= e(date('m-d-Y H:i:s', strtotime($attempt['submitted_at']))) ?>
+    <?php if (!empty($attempt['auto_submitted'])): ?>
+      <br><span class="badge b-closed" style="margin-top:6px">🚫 AUTO-SUBMITTED (<?= (int)$attempt['tab_violations'] ?> tab switch<?= (int)$attempt['tab_violations'] === 1 ? '' : 'es' ?>)</span>
+    <?php elseif (!empty($attempt['tab_violations'])): ?>
+      <br><span class="badge b-draft" style="margin-top:6px">⚠ <?= (int)$attempt['tab_violations'] ?> tab switch<?= (int)$attempt['tab_violations'] === 1 ? '' : 'es' ?> (finished normally)</span>
+    <?php endif; ?>
+  </p>
   <div class="btnrow">
     <a class="btn" href="teacher_download.php?attempt_id=<?= $attempt_id ?>">⬇ Download as PDF</a>
     <?php

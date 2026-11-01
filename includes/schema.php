@@ -143,6 +143,20 @@ function ensure_arrangingsteps(): void {
     } catch (Throwable $e) { /* DB unavailable - the calling page will surface it */ }
 }
 
+// v8 upgrade: anti-cheat tab-switch tracking columns on attempts.
+// Called from student_take.php (writes) and teacher_review.php (reads).
+// SMALLINT instead of TINYINT so it works on Postgres too.
+function ensure_anti_cheat(): void {
+    static $done = false;
+    if ($done) return;
+    $done = true;
+    try {
+        $db = db();
+        try { $db->exec('ALTER TABLE attempts ADD COLUMN tab_violations INT DEFAULT 0'); } catch (Throwable $e) { /* exists */ }
+        try { $db->exec('ALTER TABLE attempts ADD COLUMN auto_submitted SMALLINT DEFAULT 0'); } catch (Throwable $e) { /* exists */ }
+    } catch (Throwable $e) { /* DB unavailable */ }
+}
+
 // Returns true when the per-student retake column is usable.
 function has_per_student_retake(): bool {
     static $has = null;

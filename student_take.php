@@ -2,6 +2,8 @@
 require __DIR__ . '/includes/config.php';
 require __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/schema.php';
+ensure_anti_cheat();
+require_once __DIR__ . '/includes/settings.php';
 ensure_per_student_retake();
 $user = require_role('student');
 
@@ -38,6 +40,8 @@ if (has_per_student_retake()) {
 $allow_retake = !empty($exam['allow_retake']) || !empty($assigned_retake);
 $shuffle = !empty($exam['shuffle_questions']);
 $is_remedial_view = is_remedial_assignee($exam_id, (int)$user['id']);
+// Anti-cheat: admin-switchable (Admin → Settings). OFF = no tracking at all.
+$anti_cheat = anti_cheat_tab_switch();
 
 if ($attempt && $attempt['submitted_at'] !== null) {
     if (!$allow_retake) {
@@ -155,9 +159,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // E.g. passing 12/20, remedial raw 17/20 -> stored 12/20.
     $is_remedial = is_remedial_assignee($exam_id, (int)$user['id']);
     [$score, $pct, $capped] = apply_remedial_cap((float)$score, (float)$total, (float)$exam['passing_percent'], $is_remedial);
-    $st = db()->prepare('UPDATE attempts SET score=?, total=?, percentage=?, submitted_at=NOW(), needs_grading=? WHERE id=?');
-    $st->execute([$score, $total, $pct, $needs_grading, $attempt_id]);
-    if ($late) {
+    // Anti-cheat: store the tab-switch count reported by the exam page JS.
+    $tab_violations = $anti_cheat ? max(0, (int)($_POST['tab_violations'] ?? 0)) : 0;
+    $auto_submitted = $anti_cheat && !empty($_POST['auto_submitted']) ? 1 : 0;
+    $st = db()->prepare('UPDATE attempts SET score=?, total=?, percentage=?, submitted_at=NOW(), needs_grading=?, tab_violations=?, auto_submitted=? WHERE id=?');
+    $st->execute([$score, $total, $pct, $needs_grading, $tab_violations, $auto_submitted, $attempt_id]);
+    if ($auto_submitted) {
+        set_flash("Exam auto-submitted: the student switched tabs/apps $tab_violations time(s). Score: $score/$total ($pct%)." . ($capped ? ' Remedial capped at passing score.' : ''));
+    } elseif ($late) {
         set_flash("Exam submitted (late). Your score: $score/$total ($pct%)." . ($capped ? ' Remedial capped at passing score.' : ''));
     } else {
         set_flash($needs_grading ? "Exam submitted. Partial score: $score/$total — essay answers are for checking." . ($capped ? ' Remedial will be capped at passing.' : '')
@@ -172,11 +181,14 @@ include __DIR__ . '/includes/header.php';
 <div class="card">
   <p class="hint"><?= e($exam['description'] ?? '') ?></p>
   <span class="timer" id="exam-timer" data-seconds="<?= $remain ?>">⏳ --:--</span>
-  <p class="hint">One submission only. Timer auto-submits when time runs out.<?= $shuffle ? ' Questions are shuffled.' : '' ?><?= $allow_retake ? ' Retake allowed.' : '' ?><?= !empty($is_remedial_view) ? ' Remedial score capped at passing (' . e($exam['passing_percent']) . '%).' : '' ?></p>
+  <p class="hint">One submission only. Timer auto-submits when time runs out.<?= $shuffle ? ' Questions are shuffled.' : '' ?><?= $allow_retake ? ' Retake allowed.' : '' ?><?= !empty($is_remedial_view) ? ' Remedial score capped at passing (' . e($exam['passing_percent']) . '%).' : '' ?><?= $anti_cheat ? ' <b style="color:var(--bad)">⚠ Anti-cheat active: switching tabs or apps 3 times will auto-submit your exam.</b>' : '' ?></p>
+  <div id="cheat-warning" style="display:none;background:#fee2e2;border:2px solid #dc2626;color:#991b1b;padding:12px 16px;border-radius:8px;font-weight:700;margin-top:8px"></div>
 </div>
 <form method="post" id="exam-form">
   <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
   <input type="hidden" name="exam_id" value="<?= $exam_id ?>">
+  <input type="hidden" name="tab_violations" id="tab-violations" value="0">
+  <input type="hidden" name="auto_submitted" id="auto-submitted" value="0">
     <?php $i = 1; foreach ($questions as $q): ?>
   <div class="q">
     <h3><?= $i++ ?>. <?= e($q['question_text']) ?> <small class="hint">(<?= $q['points'] ?> pt)</small></h3>
@@ -313,4 +325,51 @@ include __DIR__ . '/includes/header.php';
     });
   });
 })();
+
+<?php if ($anti_cheat): ?>
+// Anti-cheat: count tab switches / app switches / minimize. 3 strikes = auto-submit.
+// Counts only actual switches (a 3-second cooldown merges blur+visibilitychange
+// that fire together for a single Alt+Tab, and ignores DevTools-click blips).
+(function() {
+  document.addEventListener('DOMContentLoaded', function() {
+    var MAX_STRIKES = 3;
+    var COOLDOWN_MS = 3000;
+    var strikes = 0;
+    var lastStrike = 0;
+    var submitting = false;
+    var warnBox = document.getElementById('cheat-warning');
+    var vField = document.getElementById('tab-violations');
+    var aField = document.getElementById('auto-submitted');
+    var form = document.getElementById('exam-form');
+    if (!form) return;
+
+    function strike(source) {
+      if (submitting) return;
+      var now = Date.now();
+      if (now - lastStrike < COOLDOWN_MS) return; // same switch, multiple events
+      lastStrike = now;
+      strikes++;
+      if (vField) vField.value = strikes;
+      if (strikes >= MAX_STRIKES) {
+        submitting = true;
+        if (warnBox) {
+          warnBox.style.display = 'block';
+          warnBox.innerHTML = '🚫 Your exam is being submitted automatically because you switched tabs or apps ' + MAX_STRIKES + ' times.';
+        }
+        if (aField) aField.value = '1';
+        // Bypasses the confirm() and required-field validation.
+        HTMLFormElement.prototype.submit.call(form);
+      } else if (warnBox) {
+        warnBox.style.display = 'block';
+        warnBox.innerHTML = '⚠️ Warning ' + strikes + ' of ' + MAX_STRIKES + ': Do not switch tabs, apps, or minimize the window. Your exam will auto-submit on the next violation.';
+      }
+    }
+
+    document.addEventListener('visibilitychange', function() {
+      if (document.visibilityState === 'hidden') strike('visibility');
+    });
+    window.addEventListener('blur', function() { strike('blur'); });
+  });
+})();
+<?php endif; ?>
 </script>

@@ -106,6 +106,8 @@ CREATE TABLE IF NOT EXISTS attempts (
   submitted_at TIMESTAMP NULL,
   needs_grading SMALLINT NOT NULL DEFAULT 0 COMMENT '1 = has essay answers awaiting manual grading',
   shuffle_seed INT,
+  tab_violations INT NOT NULL DEFAULT 0 COMMENT 'anti-cheat: tab/app switches during the exam',
+  auto_submitted SMALLINT NOT NULL DEFAULT 0 COMMENT '1 = exam auto-submitted after 3 tab switches',
   INDEX idx_attempts_exam_student (exam_id, student_id),
   CONSTRAINT fk_attempts_exam FOREIGN KEY (exam_id)
     REFERENCES exams(id) ON DELETE CASCADE,

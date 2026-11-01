@@ -85,7 +85,9 @@ CREATE TABLE IF NOT EXISTS attempts (
   started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   submitted_at TIMESTAMP NULL,
   needs_grading SMALLINT NOT NULL DEFAULT 0,
-  shuffle_seed INT
+  shuffle_seed INT,
+  tab_violations INT NOT NULL DEFAULT 0,
+  auto_submitted SMALLINT NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS answers (

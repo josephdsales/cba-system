@@ -5,6 +5,7 @@
 require __DIR__ . '/includes/config.php';
 require __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/schema.php';
+ensure_anti_cheat();
 $user = require_role('teacher');
 
 $q = trim($_GET['q'] ?? '');
@@ -41,6 +42,7 @@ if ($q !== '') {
         $selStudent = $st->fetch();
         if ($selStudent) {
             $st = db()->prepare("SELECT a.id, a.score, a.total, a.percentage, a.needs_grading, a.submitted_at,
+                a.tab_violations, a.auto_submitted,
                 e.title AS exam_title, e.id AS exam_id, e.passing_percent
                 FROM attempts a
                 JOIN exams e ON e.id = a.exam_id
@@ -112,6 +114,11 @@ include __DIR__ . '/includes/header.php';
               : ((float)$a['percentage'] >= (float)($a['passing_percent'] ?? 50)
                 ? '<span class="badge b-published">PASSED</span>'
                 : '<span class="badge b-closed">FAILED</span>');
+            if (!empty($a['auto_submitted'])) {
+                $statusBadge .= ' <span class="badge b-closed" title="Exam auto-submitted after 3 tab switches">🚫 AUTO-SUBMITTED</span>';
+            } elseif (!empty($a['tab_violations'])) {
+                $statusBadge .= ' <span class="badge b-draft" title="Tab switches during the exam (finished normally)">⚠ ' . (int)$a['tab_violations'] . ' tab switch' . ((int)$a['tab_violations'] === 1 ? '' : 'es') . '</span>';
+            }
           ?>
           <tr style="border-bottom:1px solid var(--line)">
             <td style="padding:8px"><?= e($a['exam_title']) ?></td>

@@ -16,6 +16,7 @@ Mobile-friendly online exam system: **PHP + MySQL**. Upload to any web host, ope
 - **Reports**: per-exam **scores of students + summary (takers, average, highest 🏆 with name, lowest with name)**; printable.
 - **Mobile responsive**: works on phones, tablets, desktops.
 - **Timer + auto-submit**, one submission per student, anti-retake.
+- **Anti-cheat (optional, off by default)**: when enabled in Admin → Settings, switching tabs/apps or minimizing gives the student 3 warnings; the exam auto-submits on the next switch. Teachers see an `AUTO-SUBMITTED (n tab switches)` badge on the review page.
 
 ## Project location
 

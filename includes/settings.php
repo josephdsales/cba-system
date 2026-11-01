@@ -52,3 +52,10 @@ function setting_set(string $name, string $value): void {
 function registration_open(): bool {
     return setting_get('registration_open', '1') !== '0';
 }
+
+// Anti-cheat tab-switch enforcement. Defaults to OFF. When ON, students get
+// 3 warnings for switching tabs/apps/minimizing; on the 4th strike the exam
+// auto-submits. Controlled per-deployment via Admin → Settings.
+function anti_cheat_tab_switch(): bool {
+    return setting_get('anti_cheat_tab_switch', '0') === '1';
+}
