@@ -75,6 +75,7 @@ The app runs on Render's **free web service**; the database is **Neon free Postg
 - Admin → Students → reset any password. Admin → Reports → scores/summary/highest/lowest.
 - Admin → Settings → turn student self-registration on/off (off hides the Register links and blocks `register.php` submissions).
 - Names are stored UPPERCASE (students + teachers). Existing rows: **Admin → Settings → Convert existing names to UPPERCASE**.
+- Teacher → Student Results → search by last/first name → view all that student's attempts across your exams, with per-item review and PDF download.
 
 ## Word import format (.docx)
 
@@ -114,7 +115,7 @@ All four question types are supported: **Multiple Choice** (options `A.`–`D.` 
 | `install.php` | One-time setup (delete after use) |
 | `uppercase_names.php` | Legacy redirect → Admin → Settings (safe to delete) |
 | `admin_teachers.php` / `admin_students.php` / `admin_sections.php` / `admin_reports.php` / `admin_settings.php` | Admin panel |
-| `teacher_exams.php` / `teacher_questions.php` / `teacher_import.php` / `teacher_results.php` / `teacher_sections.php` / `teacher_password.php` | Teacher panel |
+| `teacher_exams.php` / `teacher_questions.php` / `teacher_import.php` / `teacher_results.php` / `teacher_student_results.php` / `teacher_sections.php` / `teacher_password.php` | Teacher panel |
 | `student_exams.php` / `student_take.php` / `student_scores.php` / `student_password.php` | Student panel |
 | `sections_manage.php` | Shared sections logic (admin + teacher) |
 | `includes/` | config, auth, header/footer |
