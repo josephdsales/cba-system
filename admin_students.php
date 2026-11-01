@@ -42,6 +42,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         header('Location: ' . $back); exit;
     }
+    if ($action === 'add') {
+        $last = to_upper_name(trim($_POST['lastname'] ?? ''));
+        $first = to_upper_name(trim($_POST['firstname'] ?? ''));
+        $mi_raw = to_upper_name(trim($_POST['mi'] ?? ''));
+        $mi = $mi_raw !== '' ? rtrim($mi_raw, '.') . '.' : null;
+        $gender = $_POST['gender'] ?? 'Other';
+        if (!in_array($gender, ['Male', 'Female', 'Other'], true)) $gender = 'Other';
+        $section = (int)($_POST['section_id'] ?? 0);
+        $username = trim($_POST['username'] ?? '');
+        $password = $_POST['new_password'] ?? '';
+        if (strlen($last) < 2 || strlen($first) < 2 || strlen($username) < 3 || strlen($password) < 6) {
+            set_flash('Last name, first name (min 2 chars), username (min 3 chars) and password (min 6 chars) are required.');
+        } elseif (username_taken($username)) {
+            set_flash('Username already taken. Choose another.');
+        } else {
+            try {
+                $fullname = $last . ', ' . $first . ($mi ? ' ' . $mi : '');
+                $st = db()->prepare("INSERT INTO users (role, fullname, lastname, firstname, mi, gender, section_id, username, password_hash) VALUES ('student', ?, ?, ?, ?, ?, ?, ?, ?)");
+                $st->execute([$fullname, $last, $first, $mi, $gender, $section ?: null, $username, password_hash($password, PASSWORD_DEFAULT)]);
+                set_flash('Student added: ' . $fullname);
+            } catch (PDOException $ex) { set_flash('Add failed: ' . $ex->getMessage()); }
+        }
+        $qs['add'] = 1; // keep the Add form open so the admin can fix and retry
+        header('Location: admin_students.php?' . http_build_query($qs)); exit;
+    }
     if ($action === 'reset') {
         $new = $_POST['new_password'] ?? '';
         if (strlen($new) < 6) set_flash('Reset password must be min 6 chars.');
@@ -121,6 +146,36 @@ function sort_link($label, $key) {
     return '<a href="admin_students.php?' . $qs . '">' . e($label) . $arrow . '</a>';
 }
 ?>
+<div class="card">
+  <details <?= isset($_GET['add']) ? 'open' : '' ?> style="margin:0">
+    <summary style="cursor:pointer;font-weight:700;font-size:1.05rem;list-style:none">➕ Add student</summary>
+    <form method="post" style="margin-top:14px;border-top:1px solid var(--line);padding-top:14px">
+      <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
+      <input type="hidden" name="action" value="add">
+      <div class="grid two">
+        <div><label>Last name</label><input type="text" name="lastname" required placeholder="e.g. CRUZ"></div>
+        <div><label>First name</label><input type="text" name="firstname" required placeholder="e.g. JUAN"></div>
+      </div>
+      <label>Middle initial (optional)</label>
+      <input type="text" name="mi" maxlength="3" placeholder="e.g. D.">
+      <div class="grid two">
+        <div><label>Gender</label><select name="gender">
+          <?php foreach (['Male', 'Female', 'Other'] as $g): ?><option><?= $g ?></option><?php endforeach; ?>
+        </select></div>
+        <div><label>Section</label><select name="section_id">
+          <option value="0">— none —</option>
+          <?php foreach ($sections as $sec): ?><option value="<?= $sec['id'] ?>"><?= e($sec['name']) ?></option><?php endforeach; ?>
+        </select></div>
+      </div>
+      <div class="grid two">
+        <div><label>Username</label><input type="text" name="username" required minlength="3" autocomplete="off"></div>
+        <div><label>Password</label><input type="text" name="new_password" required minlength="6" autocomplete="off"></div>
+      </div>
+      <p class="hint">Names are stored UPPERCASE automatically. Username is case-insensitive (JOHN and john can't both exist).</p>
+      <div class="btnrow"><button class="btn ok" type="submit">Add student</button></div>
+    </form>
+  </details>
+</div>
 <?php if ($edit): ?>
 <div class="card">
   <h3 style="margin-top:0">Edit student</h3>
