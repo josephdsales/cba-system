@@ -40,8 +40,8 @@ if ($q !== '') {
         $st->execute([$student_id]);
         $selStudent = $st->fetch();
         if ($selStudent) {
-            $st = db()->prepare("SELECT a.id, a.score, a.total, a.percentage, a.submitted_at,
-                e.title AS exam_title, e.id AS exam_id
+            $st = db()->prepare("SELECT a.id, a.score, a.total, a.percentage, a.needs_grading, a.submitted_at,
+                e.title AS exam_title, e.id AS exam_id, e.passing_percent
                 FROM attempts a
                 JOIN exams e ON e.id = a.exam_id
                 WHERE a.student_id = ? AND e.teacher_id = ? AND a.submitted_at IS NOT NULL
@@ -102,22 +102,31 @@ include __DIR__ . '/includes/header.php';
         <small class="hint">(<?= e($selStudent['username']) ?> · <?= e($selStudent['section_name'] ?? '—') ?>)</small></h3>
       <table style="width:100%;border-collapse:collapse;font-size:.9rem;margin-top:10px">
         <thead>
-          <tr><th style="text-align:left;padding:8px">Exam</th><th style="text-align:center;padding:8px">Score</th><th style="text-align:center;padding:8px">Submitted</th><th style="text-align:left;padding:8px">Action</th></tr>
+          <tr><th style="text-align:left;padding:8px">Exam</th><th style="text-align:center;padding:8px">Score</th><th style="text-align:center;padding:8px">Passing</th><th style="text-align:center;padding:8px">Status</th><th style="text-align:center;padding:8px">Submitted</th><th style="text-align:left;padding:8px">Action</th></tr>
         </thead>
         <tbody>
           <?php foreach ($attempts as $a): ?>
+          <?php
+            $statusBadge = !empty($a['needs_grading'])
+              ? '<span class="badge b-draft">FOR CHECKING</span>'
+              : ((float)$a['percentage'] >= (float)($a['passing_percent'] ?? 50)
+                ? '<span class="badge b-published">PASSED</span>'
+                : '<span class="badge b-closed">FAILED</span>');
+          ?>
           <tr style="border-bottom:1px solid var(--line)">
             <td style="padding:8px"><?= e($a['exam_title']) ?></td>
             <td style="text-align:center;padding:8px"><b><?= e($a['score']) ?>/<?= e($a['total']) ?></b></td>
+            <td style="text-align:center;padding:8px"><?= e($a['passing_percent'] ?? 50) ?>%</td>
+            <td style="text-align:center;padding:8px"><?= $statusBadge ?></td>
             <td style="text-align:center;padding:8px"><?= e(date('m-d-Y H:i:s', strtotime($a['submitted_at']))) ?></td>
             <td style="padding:8px">
-              <a class="btn small" href="teacher_review.php?attempt_id=<?= $a['id'] ?>">🔍 Review</a>
+              <a class="btn small" href="teacher_review.php?attempt_id=<?= $a['id'] ?>&q=<?= urlencode($q) ?>&student_id=<?= $selStudent['id'] ?>">🔍 Review</a>
               <a class="btn small ghost" href="teacher_download.php?attempt_id=<?= $a['id'] ?>">📄 PDF</a>
             </td>
           </tr>
           <?php endforeach; ?>
           <?php if (!$attempts): ?>
-          <tr><td colspan="4" class="hint" style="padding:16px;text-align:center">No submitted attempts yet.</td></tr>
+          <tr><td colspan="6" class="hint" style="padding:16px;text-align:center">No submitted attempts yet.</td></tr>
           <?php endif; ?>
         </tbody>
       </table>

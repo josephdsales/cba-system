@@ -36,7 +36,15 @@ include __DIR__ . '/includes/header.php';
     · submitted <?= e(date('m-d-Y H:i:s', strtotime($attempt['submitted_at']))) ?></p>
   <div class="btnrow">
     <a class="btn" href="teacher_download.php?attempt_id=<?= $attempt_id ?>">⬇ Download as PDF</a>
-    <a class="btn ghost" href="teacher_results.php?exam_id=<?= $attempt['exam_id'] ?>">Back to results</a>
+    <?php
+    $backQs = [];
+    if (!empty($_GET['q'])) $backQs['q'] = $_GET['q'];
+    if (!empty($_GET['student_id'])) $backQs['student_id'] = $_GET['student_id'];
+    $backUrl = !empty($backQs)
+        ? 'teacher_student_results.php?' . http_build_query($backQs)
+        : 'teacher_results.php?exam_id=' . $attempt['exam_id'];
+    ?>
+    <a class="btn ghost" href="<?= $backUrl ?>">Back to student results</a>
   </div>
 </div>
 <?php $i = 1; foreach ($items as $q):
