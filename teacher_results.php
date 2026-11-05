@@ -3,6 +3,7 @@ require __DIR__ . '/includes/config.php';
 require __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/schema.php';
 ensure_per_student_retake();
+ensure_remedial_flag();
 $user = require_role('teacher');
 
 $st = db()->prepare('SELECT * FROM exams WHERE teacher_id=? ORDER BY created_at DESC');
@@ -110,7 +111,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 $over = $lst->fetchAll();
                 $n = 0;
                 if ($over) {
-                    $upd = db()->prepare('UPDATE attempts SET score=?, percentage=? WHERE id=?');
+                    $upd = db()->prepare('UPDATE attempts SET score=?, percentage=?, is_remedial=1 WHERE id=?');
                     foreach ($over as $o) {
                         $total = (float)$o['total'];
                         $ns = round($total * $pass / 100, 2);
@@ -513,7 +514,7 @@ foreach ($exams as $x) { if ((int)$x['id'] === $sel) { $selTitle = $x['title']; 
   <tr><th>#</th><th><?= sort_link('Student', 'name') ?></th><th>Section</th><th><?= sort_link('Score', 'score') ?></th><th><?= sort_link('%', 'score') ?></th><th><?= sort_link('Submitted', 'date') ?></th><th></th></tr>
   <?php $i = 1; foreach ($best_rows as $r): ?>
   <tr><td><?= $i++ ?></td><td class="student-name"><?= e($r['fullname']) ?></td><td><?= e($r['section_name'] ?? '—') ?></td>
-  <td><?= e($r['score']) ?>/<?= e($r['total']) ?></td><td><b><?= e($r['percentage']) ?>%</b></td><td><?= e(date('m-d-Y H:i:s', strtotime($r['submitted_at']))) ?></td>
+  <td><?= e($r['score']) ?>/<?= e($r['total']) ?></td><td><b><?= e($r['percentage']) ?>%</b><?= !empty($r['is_remedial']) ? ' <span class="badge b-draft" title="Score produced under remedial rules (capped at passing)">🩺 REMEDIAL</span>' : '' ?></td><td><?= e(date('m-d-Y H:i:s', strtotime($r['submitted_at']))) ?></td>
   <td><div class="btnrow" style="margin:0;gap:4px">
     <a class="btn small ghost" href="teacher_review.php?attempt_id=<?= $r['id'] ?>">Review</a>
     <form method="post" action="teacher_results.php?exam_id=<?= $sel ?>" style="margin:0" onsubmit="return confirm('Delete this attempt? The student will be able to retake the exam.');">

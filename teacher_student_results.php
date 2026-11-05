@@ -6,6 +6,7 @@ require __DIR__ . '/includes/config.php';
 require __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/schema.php';
 ensure_anti_cheat();
+ensure_remedial_flag();
 $user = require_role('teacher');
 
 $q = trim($_GET['q'] ?? '');
@@ -42,7 +43,7 @@ if ($q !== '') {
         $selStudent = $st->fetch();
         if ($selStudent) {
             $st = db()->prepare("SELECT a.id, a.score, a.total, a.percentage, a.needs_grading, a.submitted_at,
-                a.tab_violations, a.auto_submitted,
+                a.tab_violations, a.auto_submitted, a.is_remedial,
                 e.title AS exam_title, e.id AS exam_id, e.passing_percent
                 FROM attempts a
                 JOIN exams e ON e.id = a.exam_id
@@ -118,6 +119,9 @@ include __DIR__ . '/includes/header.php';
                 $statusBadge .= ' <span class="badge b-closed" title="Exam auto-submitted after 3 tab switches">🚫 AUTO-SUBMITTED</span>';
             } elseif (!empty($a['tab_violations'])) {
                 $statusBadge .= ' <span class="badge b-draft" title="Tab switches during the exam (finished normally)">⚠ ' . (int)$a['tab_violations'] . ' tab switch' . ((int)$a['tab_violations'] === 1 ? '' : 'es') . '</span>';
+            }
+            if (!empty($a['is_remedial'])) {
+                $statusBadge .= ' <span class="badge b-draft" title="Score produced under remedial rules (capped at passing)">🩺 REMEDIAL</span>';
             }
           ?>
           <tr style="border-bottom:1px solid var(--line)">

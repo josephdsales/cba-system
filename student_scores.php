@@ -3,6 +3,7 @@ require __DIR__ . '/includes/config.php';
 require __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/schema.php';
 ensure_per_student_retake();
+ensure_remedial_flag();
 $user = require_role('student');
 
 if (has_per_student_retake()) {
@@ -25,7 +26,7 @@ include __DIR__ . '/includes/header.php';
   <tr>
     <td><?= e($r['title']) ?></td><td><?= e($r['score']) ?>/<?= e($r['total']) ?></td>
     <td><b><?= e($r['percentage']) ?>%</b></td>
-    <td><?= !empty($r['needs_grading']) ? '<span class="badge b-draft">FOR CHECKING</span>' : ($r['percentage'] >= $r['passing_percent'] ? '<span class="badge b-published">PASSED</span>' : '<span class="badge b-closed">FAILED</span>') ?></td>
+    <td><?= !empty($r['needs_grading']) ? '<span class="badge b-draft">FOR CHECKING</span>' : ($r['percentage'] >= $r['passing_percent'] ? '<span class="badge b-published">PASSED</span>' : '<span class="badge b-closed">FAILED</span>') ?><?= !empty($r['is_remedial']) ? ' <span class="badge b-draft" title="Score produced under remedial rules (capped at passing)">🩺 REMEDIAL</span>' : '' ?></td>
     <td><?= e($r['submitted_at']) ?></td>
     <td>
       <div class="btnrow" style="margin:0;gap:4px">
