@@ -3,6 +3,8 @@ require __DIR__ . '/includes/config.php';
 require __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/schema.php';
 ensure_anti_cheat();
+if (function_exists('ensure_remedial_flag')) ensure_remedial_flag();
+$flag_ok = function_exists('has_remedial_flag') && has_remedial_flag();
 require_once __DIR__ . '/includes/settings.php';
 ensure_per_student_retake();
 $user = require_role('student');
@@ -47,6 +49,20 @@ if ($attempt && $attempt['submitted_at'] !== null) {
     if (!$allow_retake) {
         set_flash('You already submitted this exam.'); header('Location: student_scores.php'); exit;
     }
+    // Remedial is one-sitting only: once a remedial attempt has been
+    // submitted, no further attempt is allowed on this exam — even when a
+    // retake grant is still in place.
+    if ($flag_ok) {
+        try {
+            $rst = db()->prepare('SELECT 1 FROM attempts WHERE exam_id=? AND student_id=? AND submitted_at IS NOT NULL AND is_remedial=1');
+            $rst->execute([$exam_id, $user['id']]);
+            $remedial_done = (bool)$rst->fetchColumn();
+        } catch (Throwable $e) { $remedial_done = false; }
+        if ($remedial_done) {
+            set_flash('You have already taken the remedial for this exam. Only one remedial is allowed.');
+            header('Location: student_scores.php'); exit;
+        }
+    }
     // Retake allowed: create NEW attempt, keep old one intact
     $total = array_sum(array_column($questions, 'points'));
     $seed = $shuffle ? mt_rand(1, 2147483647) : null;
@@ -85,8 +101,13 @@ if ($elapsed >= $time_limit_seconds && empty($attempt['submitted_at'])) {
     foreach ($questions as $q) {
         $ins->execute([$attempt_id, $q['id'], null, 0, 0]);
     }
-    $st = db()->prepare('UPDATE attempts SET score=?, total=?, percentage=?, submitted_at=NOW(), needs_grading=? WHERE id=?');
-    $st->execute([0, $total, 0, 0, $attempt_id]);
+    if ($flag_ok) {
+        $st = db()->prepare('UPDATE attempts SET score=?, total=?, percentage=?, submitted_at=NOW(), needs_grading=?, is_remedial=? WHERE id=?');
+        $st->execute([0, $total, 0, 0, is_remedial_assignee($exam_id, (int)$user['id']) ? 1 : 0, $attempt_id]);
+    } else {
+        $st = db()->prepare('UPDATE attempts SET score=?, total=?, percentage=?, submitted_at=NOW(), needs_grading=? WHERE id=?');
+        $st->execute([0, $total, 0, 0, $attempt_id]);
+    }
     set_flash('Time limit exceeded. Your exam has been auto-submitted.');
     header('Location: student_scores.php'); exit;
 }
@@ -159,11 +180,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // E.g. passing 12/20, remedial raw 17/20 -> stored 12/20.
     $is_remedial = is_remedial_assignee($exam_id, (int)$user['id']);
     [$score, $pct, $capped] = apply_remedial_cap((float)$score, (float)$total, (float)$exam['passing_percent'], $is_remedial);
+    // One remedial sitting only: use up the retake grant, so the Retake
+    // button disappears and a second remedial cannot be started.
+    if ($is_remedial && has_per_student_retake()) {
+        try {
+            db()->prepare('UPDATE exam_students SET allow_retake=0 WHERE exam_id=? AND student_id=?')
+                ->execute([$exam_id, (int)$user['id']]);
+        } catch (Throwable $e) { /* best-effort */ }
+    }
     // Anti-cheat: store the tab-switch count reported by the exam page JS.
     $tab_violations = $anti_cheat ? max(0, (int)($_POST['tab_violations'] ?? 0)) : 0;
     $auto_submitted = $anti_cheat && !empty($_POST['auto_submitted']) ? 1 : 0;
-    $st = db()->prepare('UPDATE attempts SET score=?, total=?, percentage=?, submitted_at=NOW(), needs_grading=?, tab_violations=?, auto_submitted=? WHERE id=?');
-    $st->execute([$score, $total, $pct, $needs_grading, $tab_violations, $auto_submitted, $attempt_id]);
+    if ($flag_ok) {
+        $st = db()->prepare('UPDATE attempts SET score=?, total=?, percentage=?, submitted_at=NOW(), needs_grading=?, tab_violations=?, auto_submitted=?, is_remedial=? WHERE id=?');
+        $st->execute([$score, $total, $pct, $needs_grading, $tab_violations, $auto_submitted, $is_remedial ? 1 : 0, $attempt_id]);
+    } else {
+        $st = db()->prepare('UPDATE attempts SET score=?, total=?, percentage=?, submitted_at=NOW(), needs_grading=?, tab_violations=?, auto_submitted=? WHERE id=?');
+        $st->execute([$score, $total, $pct, $needs_grading, $tab_violations, $auto_submitted, $attempt_id]);
+    }
     if ($auto_submitted) {
         set_flash("Exam auto-submitted: the student switched tabs/apps $tab_violations time(s). Score: $score/$total ($pct%)." . ($capped ? ' Remedial capped at passing score.' : ''));
     } elseif ($late) {

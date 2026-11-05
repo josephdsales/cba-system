@@ -101,6 +101,25 @@ function ensure_schema(PDO $db): void {
     } else {
         try { $db->exec('CREATE TABLE IF NOT EXISTS sessions (id VARCHAR(128) NOT NULL PRIMARY KEY, user_id INT NULL, data TEXT NOT NULL, last_activity INT NOT NULL, INDEX idx_sessions_last_activity (last_activity)) ENGINE=InnoDB'); } catch (Throwable $e) { /* exists */ }
     }
+    // v9 upgrade (idempotent): per-attempt remedial marker.
+    // is_remedial=1 means this stored score was produced under remedial rules
+    // (the student was on the teacher's exam_students list when it was
+    // submitted, so it was subject to the capped-at-passing rule).
+    try { $db->exec('ALTER TABLE attempts ADD COLUMN is_remedial SMALLINT NOT NULL DEFAULT 0'); } catch (Throwable $e) { /* exists */ }
+    try {
+        // Backfill: flag historical attempts that were submitted while the
+        // student was already assigned (assigned_at <= submitted_at), so an
+        // original pre-assignment attempt stays unflagged.
+        $db->exec('UPDATE attempts a SET is_remedial=1 WHERE a.submitted_at IS NOT NULL
+            AND EXISTS (SELECT 1 FROM exam_students es WHERE es.exam_id=a.exam_id AND es.student_id=a.student_id AND es.assigned_at <= a.submitted_at)');
+    } catch (Throwable $e) { /* best-effort */ }
+    try {
+        // One remedial sitting only: revoke the retake grant of anyone who
+        // already used theirs, so the Retake button disappears.
+        $db->exec('UPDATE exam_students es SET allow_retake=0 WHERE es.allow_retake<>0 AND EXISTS (
+            SELECT 1 FROM attempts a WHERE a.exam_id=es.exam_id AND a.student_id=es.student_id
+            AND a.submitted_at IS NOT NULL AND a.is_remedial=1)');
+    } catch (Throwable $e) { /* best-effort */ }
 }
 
 // Lightweight runtime migration for live deployments (install.php won't be
@@ -155,6 +174,52 @@ function ensure_anti_cheat(): void {
         try { $db->exec('ALTER TABLE attempts ADD COLUMN tab_violations INT DEFAULT 0'); } catch (Throwable $e) { /* exists */ }
         try { $db->exec('ALTER TABLE attempts ADD COLUMN auto_submitted SMALLINT DEFAULT 0'); } catch (Throwable $e) { /* exists */ }
     } catch (Throwable $e) { /* DB unavailable */ }
+}
+
+// v9 runtime migration: attempts.is_remedial — per-attempt remedial marker.
+// Called by the pages that write or display scores. The column is added on
+// the first call; the one-time backfill only runs when that ALTER succeeds.
+function ensure_remedial_flag(): void {
+    static $done = false;
+    if ($done) return;
+    $done = true;
+    try {
+        $db = db();
+        $added = false;
+        try { $db->exec('ALTER TABLE attempts ADD COLUMN is_remedial SMALLINT NOT NULL DEFAULT 0'); $added = true; }
+        catch (Throwable $e) { /* column already exists */ }
+        if ($added) {
+            try {
+                // One-time backfill: attempts submitted while the student was
+                // already on the remedial list (assigned_at <= submitted_at),
+                // so a pre-assignment original attempt stays unflagged.
+                $db->exec('UPDATE attempts a SET is_remedial=1 WHERE a.submitted_at IS NOT NULL
+                    AND EXISTS (SELECT 1 FROM exam_students es WHERE es.exam_id=a.exam_id AND es.student_id=a.student_id AND es.assigned_at <= a.submitted_at)');
+            } catch (Throwable $e) { /* best-effort */ }
+            try {
+                // One remedial sitting only: students who already used their
+                // remedial lose the retake grant (Retake button disappears).
+                $db->exec('UPDATE exam_students es SET allow_retake=0 WHERE es.allow_retake<>0 AND EXISTS (
+                    SELECT 1 FROM attempts a WHERE a.exam_id=es.exam_id AND a.student_id=es.student_id
+                    AND a.submitted_at IS NOT NULL AND a.is_remedial=1)');
+            } catch (Throwable $e) { /* best-effort */ }
+        }
+    } catch (Throwable $e) { /* DB unavailable */ }
+}
+
+// Returns true when attempts.is_remedial exists. Mirrors
+// has_per_student_retake(): lets a page fall back to the pre-flag SQL when
+// includes/schema.php itself is stale (partial deploy), instead of crashing.
+function has_remedial_flag(): bool {
+    static $has = null;
+    if ($has !== null) return $has;
+    try {
+        db()->query('SELECT is_remedial FROM attempts LIMIT 1');
+        $has = true;
+    } catch (Throwable $e) {
+        $has = false;
+    }
+    return $has;
 }
 
 // Returns true when the per-student retake column is usable.

@@ -3,7 +3,7 @@ require __DIR__ . '/includes/config.php';
 require __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/schema.php';
 ensure_per_student_retake();
-ensure_remedial_flag();
+if (function_exists('ensure_remedial_flag')) ensure_remedial_flag();
 $user = require_role('student');
 
 if (has_per_student_retake()) {

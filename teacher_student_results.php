@@ -6,7 +6,7 @@ require __DIR__ . '/includes/config.php';
 require __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/schema.php';
 ensure_anti_cheat();
-ensure_remedial_flag();
+if (function_exists('ensure_remedial_flag')) ensure_remedial_flag();
 $user = require_role('teacher');
 
 $q = trim($_GET['q'] ?? '');
@@ -42,9 +42,9 @@ if ($q !== '') {
         $st->execute([$student_id]);
         $selStudent = $st->fetch();
         if ($selStudent) {
-            $st = db()->prepare("SELECT a.id, a.score, a.total, a.percentage, a.needs_grading, a.submitted_at,
-                a.tab_violations, a.auto_submitted, a.is_remedial,
-                e.title AS exam_title, e.id AS exam_id, e.passing_percent
+            // a.* keeps this working when the is_remedial column is missing
+            // (stale includes/schema.php on a partial deploy).
+            $st = db()->prepare("SELECT a.*, e.title AS exam_title, e.id AS exam_id, e.passing_percent
                 FROM attempts a
                 JOIN exams e ON e.id = a.exam_id
                 WHERE a.student_id = ? AND e.teacher_id = ? AND a.submitted_at IS NOT NULL

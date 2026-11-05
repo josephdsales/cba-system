@@ -87,7 +87,8 @@ CREATE TABLE IF NOT EXISTS attempts (
   needs_grading SMALLINT NOT NULL DEFAULT 0,
   shuffle_seed INT,
   tab_violations INT NOT NULL DEFAULT 0,
-  auto_submitted SMALLINT NOT NULL DEFAULT 0
+  auto_submitted SMALLINT NOT NULL DEFAULT 0,
+  is_remedial SMALLINT NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS answers (

@@ -4,6 +4,8 @@
 require __DIR__ . '/includes/config.php';
 require __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/schema.php';
+if (function_exists('ensure_remedial_flag')) ensure_remedial_flag();
+$flag_ok = function_exists('has_remedial_flag') && has_remedial_flag();
 $user = require_role('teacher');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -29,8 +31,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Fairness: remedial assignees capped at passing (e.g. raw 17/20 -> 12/20).
     $is_remedial = is_remedial_assignee((int)$attempt['exam_id'], (int)$attempt['student_id']);
     [$score, $pct, $capped] = apply_remedial_cap((float)$score, (float)$total, (float)($attempt['passing_percent'] ?? 50), $is_remedial);
-    $st = db()->prepare('UPDATE attempts SET score=?, percentage=?, needs_grading=0 WHERE id=?');
-    $st->execute([$score, $pct, $attempt_id]);
+    if ($flag_ok) {
+        $st = db()->prepare('UPDATE attempts SET score=?, percentage=?, needs_grading=0, is_remedial=? WHERE id=?');
+        $st->execute([$score, $pct, $is_remedial ? 1 : 0, $attempt_id]);
+    } else {
+        $st = db()->prepare('UPDATE attempts SET score=?, percentage=?, needs_grading=0 WHERE id=?');
+        $st->execute([$score, $pct, $attempt_id]);
+    }
     set_flash("Grading saved. Final score: $score/$total ($pct%)." . ($capped ? ' Remedial capped at passing score.' : ''));
     header('Location: teacher_grade.php'); exit;
 }

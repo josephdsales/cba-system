@@ -108,6 +108,7 @@ CREATE TABLE IF NOT EXISTS attempts (
   shuffle_seed INT,
   tab_violations INT NOT NULL DEFAULT 0 COMMENT 'anti-cheat: tab/app switches during the exam',
   auto_submitted SMALLINT NOT NULL DEFAULT 0 COMMENT '1 = exam auto-submitted after 3 tab switches',
+  is_remedial SMALLINT NOT NULL DEFAULT 0 COMMENT '1 = score produced under remedial rules (capped at passing)',
   INDEX idx_attempts_exam_student (exam_id, student_id),
   CONSTRAINT fk_attempts_exam FOREIGN KEY (exam_id)
     REFERENCES exams(id) ON DELETE CASCADE,

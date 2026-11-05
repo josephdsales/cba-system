@@ -3,7 +3,8 @@ require __DIR__ . '/includes/config.php';
 require __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/schema.php';
 ensure_per_student_retake();
-ensure_remedial_flag();
+if (function_exists('ensure_remedial_flag')) ensure_remedial_flag();
+$flag_ok = function_exists('has_remedial_flag') && has_remedial_flag();
 $user = require_role('teacher');
 
 $st = db()->prepare('SELECT * FROM exams WHERE teacher_id=? ORDER BY created_at DESC');
@@ -111,7 +112,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 $over = $lst->fetchAll();
                 $n = 0;
                 if ($over) {
-                    $upd = db()->prepare('UPDATE attempts SET score=?, percentage=?, is_remedial=1 WHERE id=?');
+                    $upd = $flag_ok
+                        ? db()->prepare('UPDATE attempts SET score=?, percentage=?, is_remedial=1 WHERE id=?')
+                        : db()->prepare('UPDATE attempts SET score=?, percentage=? WHERE id=?');
                     foreach ($over as $o) {
                         $total = (float)$o['total'];
                         $ns = round($total * $pass / 100, 2);
