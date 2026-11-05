@@ -286,13 +286,11 @@ if ($best_rows) {
         'all' => $grp($best_rows), 'male' => $grp($male), 'female' => $grp($female)];
 
     // MPL of Male / Female takers = that gender's learners who obtained the MPL
-    // divided by the TOTAL male + female takers * 100 (same rule as the
-    // individual MPL report). Weighted MPL = male MPL + female MPL.
+    // divided by the TOTAL male + female takers * 100 (individual MPL report rule).
+    // Only male/female are changed here — 'all' keeps the group-based %.
     $mf_total = $mpl['male']['n'] + $mpl['female']['n'];
-    $mpl['mf_total'] = $mf_total;
     $mpl['male']['pct']   = ($mf_total > 0) ? round($mpl['male']['reach'] / $mf_total * 100, 2) : 0;
     $mpl['female']['pct'] = ($mf_total > 0) ? round($mpl['female']['reach'] / $mf_total * 100, 2) : 0;
-    $mpl['weighted'] = round($mpl['male']['pct'] + $mpl['female']['pct'], 2);
 }
 $topn = isset($_GET['topn']) ? max(1, min(20, (int)$_GET['topn'])) : 5;
 // Actual item numbers (1..N) as the exam lists them, by sort_order.
@@ -477,10 +475,7 @@ foreach ($exams as $x) { if ((int)$x['id'] === $sel) { $selTitle = $x['title']; 
 <?php if ($mpl !== null): ?>
 <div class="grid two">
   <div class="card stat"><div class="n"><?= $mpl['cut'] ?> pts</div><div class="l">MPL — minimum proficiency level (<?= $mpl['pct'] ?>% of <?= e($mpl['total']) ?>)</div>
-    <div class="l">Male reaching MPL: <b><?= $mpl['male']['reach'] ?>/<?= $mpl['male']['n'] ?></b> — MPL of Male: <b><?= $mpl['male']['pct'] ?>%</b><br>
-    Female reaching MPL: <b><?= $mpl['female']['reach'] ?>/<?= $mpl['female']['n'] ?></b> — MPL of Female: <b><?= $mpl['female']['pct'] ?>%</b><br>
-    Weighted MPL: <b><?= $mpl['weighted'] ?>%</b> · All reaching MPL: <b><?= $mpl['all']['reach'] ?>/<?= $mpl['all']['n'] ?> (<?= $mpl['all']['pct'] ?>%)</b>
-    <small class="hint">(both use the total of <?= (int)$mpl['mf_total'] ?> male + female takers as the denominator)</small></div></div>
+    <div class="l">Male: <b><?= $mpl['male']['reach'] ?>/<?= $mpl['male']['n'] ?> (<?= $mpl['male']['pct'] ?>%)</b> · Female: <b><?= $mpl['female']['reach'] ?>/<?= $mpl['female']['n'] ?> (<?= $mpl['female']['pct'] ?>%)</b> · All: <b><?= $mpl['all']['reach'] ?>/<?= $mpl['all']['n'] ?> (<?= $mpl['all']['pct'] ?>%)</b></div></div>
   <div class="card stat"><div class="n"><?= $mpl['all']['mps'] ?>%</div><div class="l">MPS — mean percentage score</div>
     <div class="l">Male: <b><?= $mpl['male']['mps'] === null ? '—' : $mpl['male']['mps'] . '%' ?></b> · Female: <b><?= $mpl['female']['mps'] === null ? '—' : $mpl['female']['mps'] . '%' ?></b></div></div>
 </div>
