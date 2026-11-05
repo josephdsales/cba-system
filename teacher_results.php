@@ -277,7 +277,7 @@ if ($best_rows) {
         return ['n' => $n, 'reach' => $reach,
             // % that reached the MPL: passers / total number of takers
             // (male/female are re-based on all takers right after $mpl is built)
-            'pct' => ($n > 0) ? round($reach / $n * 100, 1) : 0,
+            'pct' => ($n > 0) ? round($reach / $n * 100, 2) : 0,
             'mps' => ($n > 0 && $total > 0) ? round($sum / $n / $total * 100, 2) : null];
     };
     $male = array_values(array_filter($best_rows, function ($r) { return ($r['gender'] ?? '') === 'Male'; }));
