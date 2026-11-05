@@ -275,8 +275,8 @@ if ($best_rows) {
         foreach ($list as $r) { $sum += (float)$r['score']; if ((float)$r['score'] >= $cut) $reach++; }
         $n = count($list);
         return ['n' => $n, 'reach' => $reach,
-            // % of this group that reached the MPL (male/female are re-based
-            // on the total male+female takers right after $mpl is built)
+            // % that reached the MPL: passers / total number of takers
+            // (male/female are re-based on all takers right after $mpl is built)
             'pct' => ($n > 0) ? round($reach / $n * 100, 1) : 0,
             'mps' => ($n > 0 && $total > 0) ? round($sum / $n / $total * 100, 2) : null];
     };
@@ -285,12 +285,14 @@ if ($best_rows) {
     $mpl = ['cut' => $cut, 'pct' => ($total > 0) ? round($cut / $total * 100, 1) : 0, 'total' => $best_rows[0]['total'],
         'all' => $grp($best_rows), 'male' => $grp($male), 'female' => $grp($female)];
 
-    // MPL of Male / Female takers = that gender's learners who obtained the MPL
-    // divided by the TOTAL male + female takers * 100 (individual MPL report rule).
-    // Only male/female are changed here — 'all' keeps the group-based %.
-    $mf_total = $mpl['male']['n'] + $mpl['female']['n'];
-    $mpl['male']['pct']   = ($mf_total > 0) ? round($mpl['male']['reach'] / $mf_total * 100, 2) : 0;
-    $mpl['female']['pct'] = ($mf_total > 0) ? round($mpl['female']['reach'] / $mf_total * 100, 2) : 0;
+    // Passer = learner who obtained the MPL. Denominator is the TOTAL number
+    // of takers for every row:
+    //   Male   = male passers / total takers
+    //   Female = female passers / total takers
+    //   All    = total passers / total takers  (already how 'all' is computed)
+    $total_takers = count($best_rows);
+    $mpl['male']['pct']   = ($total_takers > 0) ? round($mpl['male']['reach'] / $total_takers * 100, 2) : 0;
+    $mpl['female']['pct'] = ($total_takers > 0) ? round($mpl['female']['reach'] / $total_takers * 100, 2) : 0;
 }
 $topn = isset($_GET['topn']) ? max(1, min(20, (int)$_GET['topn'])) : 5;
 // Actual item numbers (1..N) as the exam lists them, by sort_order.

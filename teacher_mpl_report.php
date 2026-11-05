@@ -1,8 +1,8 @@
 <?php
 // Teacher: INDIVIDUAL REPORT ON THE RESULTS ... - MPL
 // Opened in a new window from teacher_results.php. Shows the MPL table:
-//   MPL of Male takers   = male learners who obtained the MPL / total (male+female) takers * 100
-//   MPL of Female takers = female learners who obtained the MPL / total (male+female) takers * 100
+//   MPL of Male takers   = male learners who obtained the MPL / total number of takers * 100
+//   MPL of Female takers = female learners who obtained the MPL / total number of takers * 100
 //   Weighted MPL         = MPL of Male takers + MPL of Female takers
 require __DIR__ . '/includes/config.php';
 require __DIR__ . '/includes/auth.php';
@@ -45,12 +45,13 @@ if ($rows) {
             $female_takers++;
             if ($got) $female_mpl++;
         } else {
-            $other_takers++; // not counted in "Male and Female Takers"
+            $other_takers++; // not in the Male/Female counts, but still a taker
         }
     }
 }
 
-$total_takers = $male_takers + $female_takers;
+// Denominator for every percentage = TOTAL number of takers (all submissions).
+$total_takers = count($rows);
 $male_mpl_pct   = ($total_takers > 0) ? round($male_mpl / $total_takers * 100, 2) : 0;
 $female_mpl_pct = ($total_takers > 0) ? round($female_mpl / $total_takers * 100, 2) : 0;
 $weighted_mpl   = round($male_mpl_pct + $female_mpl_pct, 2);
@@ -96,7 +97,7 @@ include __DIR__ . '/includes/header.php';
         <th>Number of Female Takers</th>
         <th>Number of Male learners who obtained the MPL</th>
         <th>Number of Female learners who obtained the MPL</th>
-        <th>Total Number of Male and Female Takers</th>
+        <th>Total Number of Takers</th>
         <th>MPL of Male Takers</th>
         <th>MPL of Female Takers</th>
         <th>Weighted MPL</th>
@@ -122,7 +123,7 @@ include __DIR__ . '/includes/header.php';
   </div>
 
   <?php if ($other_takers > 0): ?>
-    <p class="hint" style="margin-top:10px">⚠ <?= $other_takers ?> taker(s) with no / other gender recorded are excluded from the counts above.</p>
+    <p class="hint" style="margin-top:10px">⚠ <?= $other_takers ?> taker(s) with no / other gender recorded are included in the Total Number of Takers but not in the Male / Female counts.</p>
   <?php endif; ?>
   <?php endif; ?>
 </div>
