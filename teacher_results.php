@@ -458,7 +458,7 @@ foreach ($exams as $x) { if ((int)$x['id'] === $sel) { $selTitle = $x['title']; 
     </select>
     <button class="btn" type="submit">View</button>
     <?php if ($best_rows): ?><a class="btn ghost" href="teacher_summary_download.php?exam_id=<?= $sel ?>">⬇ Download Summary (PDF)</a><?php endif; ?>
-    <?php if ($best_rows): ?><a class="btn" href="teacher_mpl_report.php?exam_id=<?= $sel ?>" target="_blank" rel="noopener">📈 MPL Report <small>(new window)</small></a><?php endif; ?>
+    <?php if ($best_rows): ?><button type="button" class="btn" onclick="openMplReportModal()">📈 MPL Report</button><?php endif; ?>
     <?php if ($failed_students || !empty($assigned_list) || !empty($sel_allow_global)): ?>
     <button type="button" class="btn ok" onclick="openRemedialModal()">🩺 Remedial</button>
     <?php endif; ?>
@@ -736,6 +736,75 @@ function filterResultRows() {
   </div>
 </div>
 
+<?php if ($best_rows): ?>
+<?php
+// Same figures as teacher_mpl_report.php, rendered as an in-page modal.
+$r_total_takers = count($best_rows);
+$r_male_n    = (int)$mpl['male']['n'];
+$r_male_pass = (int)$mpl['male']['reach'];
+$r_female_n    = (int)$mpl['female']['n'];
+$r_female_pass = (int)$mpl['female']['reach'];
+$r_all_pass    = (int)$mpl['all']['reach']; // learners who obtained the MPL, all genders
+$r_male_pct   = $mpl['male']['pct'];
+$r_female_pct = $mpl['female']['pct'];
+$r_weighted   = round($r_male_pct + $r_female_pct, 2);
+$r_label = ($selTitle !== '') ? $selTitle : 'EXAM';
+$r_title = 'INDIVIDUAL REPORT ON THE RESULTS OF '
+    . (function_exists('mb_strtoupper') ? mb_strtoupper($r_label, 'UTF-8') : strtoupper($r_label))
+    . ' - MPL';
+?>
+<div id="mpl-report-modal" class="modal" style="display:none">
+  <div class="modal-backdrop" onclick="closeMplReportModal()"></div>
+  <div class="modal-content card" style="max-width:1000px;width:96%;max-height:90vh;overflow:auto" onclick="event.stopPropagation()">
+    <div style="text-align:center">
+      <p style="margin:0;font-weight:700">DOÑA JUANA CHIOCO NATIONAL HIGH SCHOOL</p>
+      <h3 style="margin:6px 0 2px"><?= e($r_title) ?></h3>
+      <p class="hint" style="margin:0">Exam: <b><?= e($r_label) ?></b> · MPL: <b><?= $mpl['cut'] ?> points</b> (60% of <?= e($mpl['total']) ?>) · Best attempt per student</p>
+    </div>
+
+    <div class="table-wrap" style="margin-top:14px">
+      <table style="min-width:940px">
+        <tr>
+          <th>Number of Male Takers</th>
+          <th>Number of Female Takers</th>
+          <th>Total Number of Takers</th>
+          <th>Number of Male learners who obtained the MPL</th>
+          <th>Number of Female learners who obtained the MPL</th>
+          <th>Total Number of learners who obtained the MPL</th>
+          <th>MPL of Male Takers</th>
+          <th>MPL of Female Takers</th>
+          <th>Weighted MPL</th>
+        </tr>
+        <tr style="text-align:center">
+          <td><?= $r_male_n ?></td>
+          <td><?= $r_female_n ?></td>
+          <td><b><?= $r_total_takers ?></b></td>
+          <td><?= $r_male_pass ?></td>
+          <td><?= $r_female_pass ?></td>
+          <td><b><?= $r_all_pass ?></b></td>
+          <td><b><?= $r_male_pct ?>%</b></td>
+          <td><b><?= $r_female_pct ?>%</b></td>
+          <td><b><?= $r_weighted ?>%</b></td>
+        </tr>
+      </table>
+    </div>
+
+    <h4 style="margin:14px 0 4px">Computation</h4>
+    <div class="hint" style="line-height:1.9">
+      MPL of Male Takers = <?= $r_male_pass ?> ÷ <?= $r_total_takers ?> × 100 = <b><?= $r_male_pct ?>%</b><br>
+      MPL of Female Takers = <?= $r_female_pass ?> ÷ <?= $r_total_takers ?> × 100 = <b><?= $r_female_pct ?>%</b><br>
+      Weighted MPL = <?= $r_male_pct ?>% + <?= $r_female_pct ?>% = <b><?= $r_weighted ?>%</b>
+    </div>
+
+    <div class="btnrow" style="margin-top:14px">
+      <button class="btn" type="button" onclick="printMplReport()">🖨 Print / Save as PDF</button>
+      <a class="btn ghost" href="teacher_mpl_report.php?exam_id=<?= $sel ?>">Open full report page</a>
+      <button class="btn ghost" type="button" onclick="closeMplReportModal()">Close</button>
+    </div>
+  </div>
+</div>
+<?php endif; ?>
+
 <script>
 (function () {
   var modal = document.getElementById('remedial-modal');
@@ -747,10 +816,42 @@ function filterResultRows() {
   window.openItemAnalysisModal = function () { modal.style.display = 'block'; document.body.style.overflow = 'hidden'; };
   window.closeItemAnalysisModal = function () { modal.style.display = 'none'; document.body.style.overflow = ''; };
 })();
+<?php if ($best_rows): ?>
+(function () {
+  var modal = document.getElementById('mpl-report-modal');
+  if (!modal) return;
+  window.openMplReportModal = function () { modal.style.display = 'block'; document.body.style.overflow = 'hidden'; };
+  window.closeMplReportModal = function () { modal.style.display = 'none'; document.body.style.overflow = ''; };
+  // Print ONLY the report: the body class switches on the print-only CSS below.
+  window.printMplReport = function () {
+    document.body.classList.add('print-mpl');
+    var done = function () { document.body.classList.remove('print-mpl'); window.removeEventListener('afterprint', done); };
+    window.addEventListener('afterprint', done);
+    window.print();
+    setTimeout(done, 2000); // fallback for browsers that never fire afterprint
+  };
+})();
+<?php endif; ?>
 </script>
 <style>
 .modal { position:fixed; top:0; left:0; right:0; bottom:0; z-index:100; display:flex; align-items:center; justify-content:center; padding:20px; }
 .modal-backdrop { position:absolute; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,.5); }
 .modal-content { position:relative; background:var(--card); border-radius:var(--radius); box-shadow:0 20px 40px rgba(0,0,0,.2); }
+@media print {
+  /* While body.print-mpl is on (Print button in the MPL report modal),
+     print the report only — everything else on the page is hidden. */
+  body.print-mpl main > *:not(#mpl-report-modal) { display:none !important; }
+  body.print-mpl #mpl-report-modal { display:block !important; position:static !important; padding:0; }
+  body.print-mpl #mpl-report-modal .modal-backdrop { display:none !important; }
+  body.print-mpl #mpl-report-modal .modal-content {
+    max-width:none !important; width:100% !important; max-height:none !important;
+    overflow:visible !important; box-shadow:none !important; border-radius:0 !important;
+    background:#fff !important;
+  }
+  body.print-mpl .table-wrap { overflow:visible !important; }
+  body.print-mpl #mpl-report-modal table { font-size:.74rem; min-width:0 !important; }
+  body.print-mpl #mpl-report-modal th,
+  body.print-mpl #mpl-report-modal td { padding:6px 4px; }
+}
 </style>
 <?php include __DIR__ . '/includes/footer.php'; ?>

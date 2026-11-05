@@ -29,6 +29,7 @@ $rows = $st->fetchAll();
 
 $male_takers = 0; $female_takers = 0;
 $male_mpl = 0; $female_mpl = 0;
+$all_mpl = 0; // learners who obtained the MPL, all genders
 $other_takers = 0;
 $cut = 0; $total_pts = 0;
 
@@ -38,6 +39,7 @@ if ($rows) {
     foreach ($rows as $r) {
         $g = $r['gender'] ?? '';
         $got = ((float)$r['score'] >= $cut);
+        if ($got) $all_mpl++;
         if ($g === 'Male') {
             $male_takers++;
             if ($got) $male_mpl++;
@@ -91,13 +93,14 @@ include __DIR__ . '/includes/header.php';
     <p class="hint">No submissions yet for this exam.</p>
   <?php else: ?>
   <div class="table-wrap">
-    <table style="min-width:900px">
+    <table style="min-width:980px">
       <tr>
         <th>Number of Male Takers</th>
         <th>Number of Female Takers</th>
+        <th>Total Number of Takers</th>
         <th>Number of Male learners who obtained the MPL</th>
         <th>Number of Female learners who obtained the MPL</th>
-        <th>Total Number of Takers</th>
+        <th>Total Number of learners who obtained the MPL</th>
         <th>MPL of Male Takers</th>
         <th>MPL of Female Takers</th>
         <th>Weighted MPL</th>
@@ -105,9 +108,10 @@ include __DIR__ . '/includes/header.php';
       <tr style="text-align:center">
         <td><?= $male_takers ?></td>
         <td><?= $female_takers ?></td>
+        <td><b><?= $total_takers ?></b></td>
         <td><?= $male_mpl ?></td>
         <td><?= $female_mpl ?></td>
-        <td><b><?= $total_takers ?></b></td>
+        <td><b><?= $all_mpl ?></b></td>
         <td><b><?= $fmt($male_mpl_pct) ?>%</b></td>
         <td><b><?= $fmt($female_mpl_pct) ?>%</b></td>
         <td><b><?= $fmt($weighted_mpl) ?>%</b></td>
@@ -123,16 +127,16 @@ include __DIR__ . '/includes/header.php';
   </div>
 
   <?php if ($other_takers > 0): ?>
-    <p class="hint" style="margin-top:10px">⚠ <?= $other_takers ?> taker(s) with no / other gender recorded are included in the Total Number of Takers but not in the Male / Female counts.</p>
+    <p class="hint" style="margin-top:10px">⚠ <?= $other_takers ?> taker(s) with no / other gender recorded are included in the two "Total" columns but not in the Male / Female counts.</p>
   <?php endif; ?>
   <?php endif; ?>
 </div>
 <style>
 @media print {
-  /* Wide 8-column table must not be clipped by the scroll wrapper. */
+  /* Wide 9-column table must not be clipped by the scroll wrapper. */
   .table-wrap { overflow: visible !important; }
-  table { font-size: .75rem; }
-  th, td { padding: 6px 5px; }
+  table { font-size: .72rem; min-width: 0 !important; }
+  th, td { padding: 6px 4px; }
 }
 </style>
 <?php include __DIR__ . '/includes/footer.php'; ?>
