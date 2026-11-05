@@ -448,6 +448,7 @@ foreach ($exams as $x) { if ((int)$x['id'] === $sel) { $selTitle = $x['title']; 
     </select>
     <button class="btn" type="submit">View</button>
     <?php if ($best_rows): ?><a class="btn ghost" href="teacher_summary_download.php?exam_id=<?= $sel ?>">⬇ Download Summary (PDF)</a><?php endif; ?>
+    <?php if ($best_rows): ?><a class="btn" href="teacher_mpl_report.php?exam_id=<?= $sel ?>" target="_blank" rel="noopener">📈 MPL Report <small>(new window)</small></a><?php endif; ?>
     <?php if ($failed_students || !empty($assigned_list) || !empty($sel_allow_global)): ?>
     <button type="button" class="btn ok" onclick="openRemedialModal()">🩺 Remedial</button>
     <?php endif; ?>
