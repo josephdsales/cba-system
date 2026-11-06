@@ -162,6 +162,8 @@ include __DIR__ . '/includes/header.php';
 
   <h4 style="margin-bottom:4px">Computation</h4>
   <div class="hint" style="line-height:1.9">
+    Mean = Σ scores ÷ No. of Takers = <?= $fmt(array_sum($scores)) ?> ÷ <?= $total_takers ?> = <b><?= $fmt(round($mean, 2)) ?></b><br>
+    MPS = Mean ÷ Total Points × 100 = (<?= $fmt(array_sum($scores)) ?> ÷ <?= $total_takers ?>) ÷ <?= $fmt($total_pts) ?> × 100 = <b><?= $fmt($mps) ?>%</b><br>
     MPL of Male Takers = <?= $male_mpl ?> ÷ <?= $total_takers ?> × 100 = <b><?= $fmt($male_mpl_pct) ?>%</b><br>
     MPL of Female Takers = <?= $female_mpl ?> ÷ <?= $total_takers ?> × 100 = <b><?= $fmt($female_mpl_pct) ?>%</b><br>
     Weighted MPL = <?= $fmt($male_mpl_pct) ?>% + <?= $fmt($female_mpl_pct) ?>% = <b><?= $fmt($weighted_mpl) ?>%</b>

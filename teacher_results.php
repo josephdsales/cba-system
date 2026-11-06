@@ -799,7 +799,8 @@ $r_pts    = (float)$mpl['total'];
 $r_scores = array_map(function ($r) { return (float)$r['score']; }, $best_rows);
 $r_high   = max($r_scores);
 $r_low    = min($r_scores);
-$r_mean   = round(array_sum($r_scores) / count($r_scores), 2);
+$r_sum    = array_sum($r_scores);
+$r_mean   = round($r_sum / count($r_scores), 2);
 $r_mps    = $mpl['all']['mps'];
 $r_fmt    = function ($n) { return rtrim(rtrim(number_format((float)$n, 2, '.', ','), '0'), '.'); };
 ?>
@@ -866,6 +867,8 @@ $r_fmt    = function ($n) { return rtrim(rtrim(number_format((float)$n, 2, '.', 
 
     <h4 style="margin:14px 0 4px">Computation</h4>
     <div class="hint" style="line-height:1.9">
+      Mean = Σ scores ÷ No. of Takers = <?= $r_fmt($r_sum) ?> ÷ <?= $r_total_takers ?> = <b><?= $r_fmt($r_mean) ?></b><br>
+      MPS = Mean ÷ Total Points × 100 = (<?= $r_fmt($r_sum) ?> ÷ <?= $r_total_takers ?>) ÷ <?= $r_fmt($r_pts) ?> × 100 = <b><?= $r_fmt($r_mps) ?>%</b><br>
       MPL of Male Takers = <?= $r_male_pass ?> ÷ <?= $r_total_takers ?> × 100 = <b><?= $r_male_pct ?>%</b><br>
       MPL of Female Takers = <?= $r_female_pass ?> ÷ <?= $r_total_takers ?> × 100 = <b><?= $r_female_pct ?>%</b><br>
       Weighted MPL = <?= $r_male_pct ?>% + <?= $r_female_pct ?>% = <b><?= $r_weighted ?>%</b>
