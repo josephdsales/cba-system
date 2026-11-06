@@ -57,7 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $st = db()->prepare("SELECT e.*, s.name AS section_name, (SELECT COUNT(*) FROM questions q WHERE q.exam_id=e.id) AS qcount,
-    (SELECT COUNT(*) FROM attempts a WHERE a.exam_id=e.id AND a.submitted_at IS NOT NULL) AS takers
+    (SELECT COUNT(DISTINCT a.student_id) FROM attempts a WHERE a.exam_id=e.id AND a.submitted_at IS NOT NULL) AS takers
     FROM exams e LEFT JOIN sections s ON s.id=e.section_id WHERE e.teacher_id=? ORDER BY e.created_at DESC");
 $st->execute([$user['id']]);
 $exams = $st->fetchAll();
