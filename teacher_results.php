@@ -455,19 +455,35 @@ foreach ($exams as $x) { if ((int)$x['id'] === $sel) { $selTitle = $x['title']; 
   <h2 style="margin:0"><?= e($selTitle !== '' ? $selTitle : 'Exam Results') ?></h2>
   <p class="hint" style="margin:4px 0">Summary of scores · generated <?= date('Y-m-d H:i') ?></p>
 </div>
-<div class="card no-print">
-  <form method="get" style="display:flex;gap:8px;flex-wrap:wrap">
-    <select name="exam_id" style="flex:1;min-width:220px">
-      <?php foreach ($exams as $x): ?><option value="<?= $x['id'] ?>" <?= $sel === (int)$x['id'] ? 'selected' : '' ?>><?= e($x['title']) ?></option><?php endforeach; ?>
-    </select>
-    <button class="btn" type="submit">View</button>
-    <?php if ($best_rows): ?><a class="btn ghost" href="teacher_summary_download.php?exam_id=<?= $sel ?>">⬇ Download Summary (PDF)</a><?php endif; ?>
-    <?php if ($best_rows): ?><button type="button" class="btn" onclick="openMplReportModal()">📈 MPL Report</button><?php endif; ?>
-    <?php if ($failed_students || !empty($assigned_list) || !empty($sel_allow_global)): ?>
-    <button type="button" class="btn ok" onclick="openRemedialModal()">🩺 Remedial</button>
+<div class="card no-print toolbar">
+  <form method="get" class="tb-form">
+    <?php if ($exams): ?>
+    <div class="tb-field">
+      <span class="tb-cap">Exam</span>
+      <div class="tb-join">
+        <select name="exam_id" aria-label="Select exam">
+          <?php foreach ($exams as $x): ?><option value="<?= $x['id'] ?>" <?= $sel === (int)$x['id'] ? 'selected' : '' ?>><?= e($x['title']) ?></option><?php endforeach; ?>
+        </select>
+        <button class="btn tb-go" type="submit">View</button>
+      </div>
+    </div>
+    <div class="tb-sep" aria-hidden="true"></div>
     <?php endif; ?>
-    <?php if ($best_rows): ?>
-    <button type="button" class="btn" onclick="openItemAnalysisModal()">📊 Item Analysis</button>
+
+    <?php if ($best_rows || $failed_students || !empty($assigned_list) || !empty($sel_allow_global)): ?>
+    <div class="tb-field">
+      <span class="tb-cap">Actions</span>
+      <div class="tb-btns">
+        <?php if ($best_rows): ?>
+        <a class="btn ghost tb-btn" href="teacher_summary_download.php?exam_id=<?= $sel ?>" title="Download summary of scores as PDF">⬇ Summary PDF</a>
+        <button type="button" class="btn ghost tb-btn" onclick="openMplReportModal()" title="Individual MPL report">📈 MPL Report</button>
+        <button type="button" class="btn ghost tb-btn" onclick="openItemAnalysisModal()" title="Per-question difficulty">📊 Item Analysis</button>
+        <?php endif; ?>
+        <?php if ($failed_students || !empty($assigned_list) || !empty($sel_allow_global)): ?>
+        <button type="button" class="btn ok tb-btn" onclick="openRemedialModal()" title="Create remedial / manage retakes">🩺 Remedial<?= count($failed_students) ? ' <span class="tb-count">' . (int)count($failed_students) . '</span>' : '' ?></button>
+        <?php endif; ?>
+      </div>
+    </div>
     <?php endif; ?>
   </form>
 </div>
@@ -841,6 +857,32 @@ $r_title = 'INDIVIDUAL REPORT ON THE RESULTS OF '
 .modal { position:fixed; top:0; left:0; right:0; bottom:0; z-index:100; display:flex; align-items:center; justify-content:center; padding:20px; }
 .modal-backdrop { position:absolute; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,.5); }
 .modal-content { position:relative; background:var(--card); border-radius:var(--radius); box-shadow:0 20px 40px rgba(0,0,0,.2); }
+
+/* Results toolbar: exam picker left, grouped actions right */
+.toolbar { padding: 12px 14px; }
+.tb-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 14px 16px; }
+.tb-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.tb-cap { font-size: .66rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.tb-join { display: flex; align-items: stretch; }
+.tb-join select {
+  width: auto; min-width: 240px; max-width: 330px; padding: 8px 10px; font-size: .95rem;
+  border-radius: 8px 0 0 8px; border-right: 0;
+}
+.tb-join .tb-go { border-radius: 0 8px 8px 0; padding: 8px 18px; font-size: .95rem; }
+.tb-btns { display: flex; flex-wrap: wrap; gap: 8px; }
+.tb-btn { padding: 8px 13px; font-size: .92rem; border: 1px solid transparent; }
+.tb-btn.ghost { background: #f2f4f7; color: #344054; border-color: var(--line); }
+.tb-btn.ghost:hover { background: #e4e7ec; color: var(--ink); }
+.tb-btn .tb-count {
+  display: inline-block; min-width: 18px; padding: 0 5px; margin-left: 5px;
+  background: rgba(255,255,255,.25); border-radius: 999px; font-size: .74rem; font-weight: 700;
+}
+.tb-sep { width: 1px; align-self: stretch; background: var(--line); }
+@media (max-width: 680px) {
+  .tb-sep { display: none; }
+  .tb-join { width: 100%; }
+  .tb-join select { min-width: 0; max-width: none; flex: 1; }
+}
 @media print {
   /* While body.print-mpl is on (Print button in the MPL report modal),
      print the report only — everything else on the page is hidden. */
