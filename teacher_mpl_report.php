@@ -78,6 +78,9 @@ if ($exam_label === '') $exam_label = 'EXAM';
 $report_title = 'INDIVIDUAL REPORT ON THE RESULTS OF '
     . (function_exists('mb_strtoupper') ? mb_strtoupper($exam_label, 'UTF-8') : strtoupper($exam_label))
     . ' - MPL';
+$report_title_mps = 'INDIVIDUAL REPORT ON THE RESULTS OF '
+    . (function_exists('mb_strtoupper') ? mb_strtoupper($exam_label, 'UTF-8') : strtoupper($exam_label))
+    . ' - MPS';
 include __DIR__ . '/includes/header.php';
 ?>
 <div class="card print-only" style="text-align:center">
@@ -132,7 +135,7 @@ include __DIR__ . '/includes/header.php';
     </table>
   </div>
 
-  <h4 style="margin:14px 0 4px">Summary Statistics</h4>
+  <h3 style="margin:16px 0 6px"><?= e($report_title_mps) ?></h3>
   <div class="table-wrap">
     <table>
       <tr>

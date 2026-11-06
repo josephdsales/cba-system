@@ -789,6 +789,10 @@ $r_label = ($selTitle !== '') ? $selTitle : 'EXAM';
 $r_title = 'INDIVIDUAL REPORT ON THE RESULTS OF '
     . (function_exists('mb_strtoupper') ? mb_strtoupper($r_label, 'UTF-8') : strtoupper($r_label))
     . ' - MPL';
+// Same heading for the summary-statistics table, but flagged as the MPS report.
+$r_title_mps = 'INDIVIDUAL REPORT ON THE RESULTS OF '
+    . (function_exists('mb_strtoupper') ? mb_strtoupper($r_label, 'UTF-8') : strtoupper($r_label))
+    . ' - MPS';
 // Summary statistics table: takers, items, highest, lowest, mean, MPS.
 $r_items  = count($item_no_map);
 $r_pts    = (float)$mpl['total'];
@@ -835,7 +839,7 @@ $r_fmt    = function ($n) { return rtrim(rtrim(number_format((float)$n, 2, '.', 
       </table>
     </div>
 
-    <h4 style="margin:14px 0 4px">Summary Statistics</h4>
+    <h3 style="margin:16px 0 6px"><?= e($r_title_mps) ?></h3>
     <div class="table-wrap">
       <table>
         <tr>
