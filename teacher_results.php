@@ -476,7 +476,7 @@ foreach ($exams as $x) { if ((int)$x['id'] === $sel) { $selTitle = $x['title']; 
       <div class="tb-btns">
         <?php if ($best_rows): ?>
         <a class="btn ghost tb-btn" href="teacher_summary_download.php?exam_id=<?= $sel ?>" title="Download summary of scores as PDF">⬇ Summary PDF</a>
-        <button type="button" class="btn ghost tb-btn" onclick="openMplReportModal()" title="Individual MPL report">📈 MPL Report</button>
+        <button type="button" class="btn ghost tb-btn" onclick="openMplReportModal()" title="Statistical report: MPL + score summary">📈 Statistical Report</button>
         <button type="button" class="btn ghost tb-btn" onclick="openItemAnalysisModal()" title="Per-question difficulty">📊 Item Analysis</button>
         <?php endif; ?>
         <?php if ($failed_students || !empty($assigned_list) || !empty($sel_allow_global)): ?>
@@ -789,6 +789,15 @@ $r_label = ($selTitle !== '') ? $selTitle : 'EXAM';
 $r_title = 'INDIVIDUAL REPORT ON THE RESULTS OF '
     . (function_exists('mb_strtoupper') ? mb_strtoupper($r_label, 'UTF-8') : strtoupper($r_label))
     . ' - MPL';
+// Summary statistics table: takers, items, highest, lowest, mean, MPS.
+$r_items  = count($item_no_map);
+$r_pts    = (float)$mpl['total'];
+$r_scores = array_map(function ($r) { return (float)$r['score']; }, $best_rows);
+$r_high   = max($r_scores);
+$r_low    = min($r_scores);
+$r_mean   = round(array_sum($r_scores) / count($r_scores), 2);
+$r_mps    = $mpl['all']['mps'];
+$r_fmt    = function ($n) { return rtrim(rtrim(number_format((float)$n, 2, '.', ','), '0'), '.'); };
 ?>
 <div id="mpl-report-modal" class="modal" style="display:none">
   <div class="modal-backdrop" onclick="closeMplReportModal()"></div>
@@ -824,6 +833,29 @@ $r_title = 'INDIVIDUAL REPORT ON THE RESULTS OF '
           <td><b><?= $r_weighted ?>%</b></td>
         </tr>
       </table>
+    </div>
+
+    <h4 style="margin:14px 0 4px">Summary Statistics</h4>
+    <div class="table-wrap">
+      <table>
+        <tr>
+          <th>Total No. of Takers</th>
+          <th>No. of Items</th>
+          <th>Highest Score</th>
+          <th>Lowest Score</th>
+          <th>Mean</th>
+          <th>MPS</th>
+        </tr>
+        <tr style="text-align:center">
+          <td><b><?= $r_total_takers ?></b></td>
+          <td><?= $r_items ?></td>
+          <td><?= $r_fmt($r_high) ?></td>
+          <td><?= $r_fmt($r_low) ?></td>
+          <td><?= $r_fmt($r_mean) ?></td>
+          <td><b><?= $r_fmt($r_mps) ?>%</b></td>
+        </tr>
+      </table>
+      <p class="hint" style="margin:6px 0 0">Highest Score, Lowest Score and Mean are in points (out of <?= $r_fmt($r_pts) ?>) · MPS = mean percentage score (Mean ÷ <?= $r_fmt($r_pts) ?> × 100) · Best attempt per student</p>
     </div>
 
     <h4 style="margin:14px 0 4px">Computation</h4>

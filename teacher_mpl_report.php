@@ -59,7 +59,20 @@ $female_mpl_pct = ($total_takers > 0) ? round($female_mpl / $total_takers * 100,
 $weighted_mpl   = round($male_mpl_pct + $female_mpl_pct, 2);
 
 $fmt = function ($n) { return rtrim(rtrim(number_format((float)$n, 2, '.', ','), '0'), '.'); };
-$title = 'MPL Report';
+$title = 'Statistical Report';
+
+// Summary statistics: takers, items, highest, lowest, mean, MPS.
+$st = db()->prepare('SELECT COUNT(*) FROM questions WHERE exam_id=?');
+$st->execute([$exam_id]);
+$item_count = (int)$st->fetchColumn();
+$scores = []; $mean = 0; $high = 0; $low = 0; $mps = 0;
+if ($rows) {
+    foreach ($rows as $r) $scores[] = (float)$r['score'];
+    $high = max($scores);
+    $low = min($scores);
+    $mean = array_sum($scores) / count($scores);
+    $mps = ($total_pts > 0) ? round($mean / $total_pts * 100, 2) : 0;
+}
 $exam_label = trim((string)$exam['title']);
 if ($exam_label === '') $exam_label = 'EXAM';
 $report_title = 'INDIVIDUAL REPORT ON THE RESULTS OF '
@@ -117,6 +130,29 @@ include __DIR__ . '/includes/header.php';
         <td><b><?= $fmt($weighted_mpl) ?>%</b></td>
       </tr>
     </table>
+  </div>
+
+  <h4 style="margin:14px 0 4px">Summary Statistics</h4>
+  <div class="table-wrap">
+    <table>
+      <tr>
+        <th>Total No. of Takers</th>
+        <th>No. of Items</th>
+        <th>Highest Score</th>
+        <th>Lowest Score</th>
+        <th>Mean</th>
+        <th>MPS</th>
+      </tr>
+      <tr style="text-align:center">
+        <td><b><?= $total_takers ?></b></td>
+        <td><?= $item_count ?></td>
+        <td><?= $fmt($high) ?></td>
+        <td><?= $fmt($low) ?></td>
+        <td><?= $fmt($mean) ?></td>
+        <td><b><?= $fmt($mps) ?>%</b></td>
+      </tr>
+    </table>
+    <p class="hint" style="margin:6px 0 0">Highest Score, Lowest Score and Mean are in points (out of <?= $fmt($total_pts) ?>) · MPS = mean percentage score (Mean ÷ <?= $fmt($total_pts) ?> × 100) · Best attempt per student</p>
   </div>
 
   <h4 style="margin-bottom:4px">Computation</h4>
