@@ -98,8 +98,8 @@ include __DIR__ . '/includes/header.php';
 </div>
 
 <div class="card">
-  <h3 style="margin-top:0"><?= e($report_title) ?></h3>
-  <p class="hint" style="margin-top:-6px">
+  <h3 style="margin-top:0;text-align:center"><?= e($report_title) ?></h3>
+  <p class="hint" style="margin-top:-6px;text-align:center">
     Exam: <b><?= e($exam['title']) ?></b><?php if ($rows): ?> ·
     MPL: <b><?= $fmt($cut) ?> points</b> (60% of <?= $fmt($total_pts) ?>) ·
     Best attempt per student<?php endif; ?>
@@ -135,12 +135,13 @@ include __DIR__ . '/includes/header.php';
     </table>
   </div>
 
-  <h3 style="margin:16px 0 6px"><?= e($report_title_mps) ?></h3>
+  <h3 style="margin:16px 0 6px;text-align:center"><?= e($report_title_mps) ?></h3>
   <div class="table-wrap">
     <table>
       <tr>
         <th>Total No. of Takers</th>
         <th>No. of Items</th>
+        <th>Total Points</th>
         <th>Highest Score</th>
         <th>Lowest Score</th>
         <th>Mean</th>
@@ -149,13 +150,14 @@ include __DIR__ . '/includes/header.php';
       <tr style="text-align:center">
         <td><b><?= $total_takers ?></b></td>
         <td><?= $item_count ?></td>
+        <td><?= $fmt($total_pts) ?></td>
         <td><?= $fmt($high) ?></td>
         <td><?= $fmt($low) ?></td>
         <td><?= $fmt($mean) ?></td>
         <td><b><?= $fmt($mps) ?>%</b></td>
       </tr>
     </table>
-    <p class="hint" style="margin:6px 0 0">Highest Score, Lowest Score and Mean are in points (out of <?= $fmt($total_pts) ?>) · MPS = mean percentage score (Mean ÷ <?= $fmt($total_pts) ?> × 100) · Best attempt per student</p>
+    <p class="hint" style="margin:6px 0 0">Highest Score, Lowest Score and Mean are in points (out of the Total Points) · MPS = Mean ÷ Total Points × 100 · Best attempt per student</p>
   </div>
 
   <h4 style="margin-bottom:4px">Computation</h4>

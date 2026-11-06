@@ -839,12 +839,13 @@ $r_fmt    = function ($n) { return rtrim(rtrim(number_format((float)$n, 2, '.', 
       </table>
     </div>
 
-    <h3 style="margin:16px 0 6px"><?= e($r_title_mps) ?></h3>
+    <h3 style="margin:16px 0 6px;text-align:center"><?= e($r_title_mps) ?></h3>
     <div class="table-wrap">
       <table>
         <tr>
           <th>Total No. of Takers</th>
           <th>No. of Items</th>
+          <th>Total Points</th>
           <th>Highest Score</th>
           <th>Lowest Score</th>
           <th>Mean</th>
@@ -853,13 +854,14 @@ $r_fmt    = function ($n) { return rtrim(rtrim(number_format((float)$n, 2, '.', 
         <tr style="text-align:center">
           <td><b><?= $r_total_takers ?></b></td>
           <td><?= $r_items ?></td>
+          <td><?= $r_fmt($r_pts) ?></td>
           <td><?= $r_fmt($r_high) ?></td>
           <td><?= $r_fmt($r_low) ?></td>
           <td><?= $r_fmt($r_mean) ?></td>
           <td><b><?= $r_fmt($r_mps) ?>%</b></td>
         </tr>
       </table>
-      <p class="hint" style="margin:6px 0 0">Highest Score, Lowest Score and Mean are in points (out of <?= $r_fmt($r_pts) ?>) · MPS = mean percentage score (Mean ÷ <?= $r_fmt($r_pts) ?> × 100) · Best attempt per student</p>
+      <p class="hint" style="margin:6px 0 0">Highest Score, Lowest Score and Mean are in points (out of the Total Points) · MPS = Mean ÷ Total Points × 100 · Best attempt per student</p>
     </div>
 
     <h4 style="margin:14px 0 4px">Computation</h4>
