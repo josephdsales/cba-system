@@ -488,20 +488,37 @@ foreach ($exams as $x) { if ((int)$x['id'] === $sel) { $selTitle = $x['title']; 
   </form>
 </div>
 <?php if ($sel && $summary): ?>
-<div class="grid two">
-  <div class="card stat"><div class="n"><?= $summary['takers'] ?></div><div class="l">Takers</div></div>
-  <div class="card stat"><div class="n"><?= $summary['average'] ?>%</div><div class="l">Average (summary)</div></div>
-  <div class="card stat"><div class="n" style="color:var(--ok)">🏆 <?= $summary['highest'] ?>%</div><div class="l">Highest — <?= e($summary['top']) ?></div></div>
-  <div class="card stat"><div class="n" style="color:var(--bad)"><?= $summary['lowest'] ?>%</div><div class="l">Lowest — <?= e($summary['low']) ?></div></div>
+<div class="stats">
+  <div class="grid two stats-top">
+    <div class="card stat"><div class="n"><?= $summary['takers'] ?></div><div class="l">Takers</div></div>
+    <div class="card stat"><div class="n"><?= $summary['average'] ?>%</div><div class="l">Average (summary)</div></div>
+    <div class="card stat"><div class="n n-ok">🏆 <?= $summary['highest'] ?>%</div><div class="l">Highest</div><div class="l names" title="<?= e($summary['top']) ?>"><?= e($summary['top']) ?></div></div>
+    <div class="card stat"><div class="n n-bad"><?= $summary['lowest'] ?>%</div><div class="l">Lowest</div><div class="l names" title="<?= e($summary['low']) ?>"><?= e($summary['low']) ?></div></div>
+  </div>
+  <?php if ($mpl !== null): ?>
+  <div class="grid two stats-mpl">
+    <div class="card stat">
+      <div class="n"><?= $mpl['cut'] ?> pts</div>
+      <div class="l">MPL — minimum proficiency level</div>
+      <div class="l sub"><?= $mpl['pct'] ?>% of <?= e($mpl['total']) ?> points</div>
+      <div class="split">
+        <div class="row"><span>Male MPL</span><b><?= $mpl['male']['reach'] ?>/<?= $mpl['male']['n'] ?> (<?= $mpl['male']['pct'] ?>%)</b></div>
+        <div class="row"><span>Female MPL</span><b><?= $mpl['female']['reach'] ?>/<?= $mpl['female']['n'] ?> (<?= $mpl['female']['pct'] ?>%)</b></div>
+        <div class="row row-all"><span>All MPL</span><b><?= $mpl['all']['reach'] ?>/<?= $mpl['all']['n'] ?> (<?= $mpl['all']['pct'] ?>%)</b></div>
+      </div>
+    </div>
+    <div class="card stat">
+      <div class="n"><?= $mpl['all']['mps'] ?>%</div>
+      <div class="l">MPS — mean percentage score</div>
+      <div class="l sub">Average of best scores</div>
+      <div class="split">
+        <div class="row"><span>Male MPS</span><b><?= $mpl['male']['mps'] === null ? '—' : $mpl['male']['mps'] . '%' ?></b></div>
+        <div class="row"><span>Female MPS</span><b><?= $mpl['female']['mps'] === null ? '—' : $mpl['female']['mps'] . '%' ?></b></div>
+      </div>
+    </div>
+  </div>
+  <?php endif; ?>
 </div>
-<?php if ($mpl !== null): ?>
-<div class="grid two">
-  <div class="card stat"><div class="n"><?= $mpl['cut'] ?> pts</div><div class="l">MPL — minimum proficiency level (<?= $mpl['pct'] ?>% of <?= e($mpl['total']) ?>)</div>
-    <div class="l">Male: <b><?= $mpl['male']['reach'] ?>/<?= $mpl['male']['n'] ?> (<?= $mpl['male']['pct'] ?>%)</b> · Female: <b><?= $mpl['female']['reach'] ?>/<?= $mpl['female']['n'] ?> (<?= $mpl['female']['pct'] ?>%)</b> · All: <b><?= $mpl['all']['reach'] ?>/<?= $mpl['all']['n'] ?> (<?= $mpl['all']['pct'] ?>%)</b></div></div>
-  <div class="card stat"><div class="n"><?= $mpl['all']['mps'] ?>%</div><div class="l">MPS — mean percentage score</div>
-    <div class="l">Male: <b><?= $mpl['male']['mps'] === null ? '—' : $mpl['male']['mps'] . '%' ?></b> · Female: <b><?= $mpl['female']['mps'] === null ? '—' : $mpl['female']['mps'] . '%' ?></b></div></div>
-</div>
-<?php endif; ?>
 <?php endif; ?>
 <?php if ($analysis): ?>
 <div class="card no-print">
@@ -883,6 +900,37 @@ $r_title = 'INDIVIDUAL REPORT ON THE RESULTS OF '
   .tb-join { width: 100%; }
   .tb-join select { min-width: 0; max-width: none; flex: 1; }
 }
+
+/* Summary stats: 4 KPI tiles on top, MPL / MPS breakdown cards below */
+.stats { display: flex; flex-direction: column; gap: 12px; margin: 12px 0; }
+.stats .card { margin: 0; }
+.stats .stats-top { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.stats .card.stat {
+  display: flex; flex-direction: column; justify-content: flex-start;
+  padding: 14px 14px 13px; text-align: center;
+}
+.stats .stat .n { font-size: 1.7rem; line-height: 1.15; letter-spacing: -.01em; }
+.stats .stat .n-ok { color: var(--ok); }
+.stats .stat .n-bad { color: var(--bad); }
+.stats .stat .l { font-size: .83rem; }
+.stats .stat .l.names { font-size: .76rem; color: #98a2b3; margin-top: 4px; line-height: 1.4; word-break: break-word; }
+.stats .stat .l.sub { font-size: .78rem; color: #98a2b3; margin-top: 2px; }
+/* MPL / MPS cards: left-aligned with a divider before the gender rows */
+.stats-mpl .card.stat { text-align: left; }
+.stats-mpl .stat .n { font-size: 1.55rem; }
+.stats .split {
+  margin-top: 11px; padding-top: 9px; border-top: 1px solid var(--line);
+  display: flex; flex-direction: column; gap: 6px;
+}
+.stats .split .row {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
+  font-size: .84rem; color: var(--muted);
+}
+.stats .split .row b { color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.stats .split .row-all { padding-top: 6px; border-top: 1px dashed var(--line); }
+.stats .split .row-all span, .stats .split .row-all b { font-weight: 700; color: var(--ink); }
+@media (max-width: 540px) { .stats .stats-top { grid-template-columns: 1fr; } }
+@media (min-width: 900px) { .stats .stats-top { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 @media print {
   /* While body.print-mpl is on (Print button in the MPL report modal),
      print the report only — everything else on the page is hidden. */
